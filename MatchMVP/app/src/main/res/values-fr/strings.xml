@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Match MVP</string>
+
+    <string name="nickname_hint">Ton pseudo</string>
+    <string name="phone_hint">Ton numéro de téléphone (révélé seulement en cas de match)</string>
+    <string name="age_check_label">J\'ai 18 ans ou plus</string>
+    <string name="badge_check_label">Afficher le badge communautaire (visible uniquement pour ceux qui l\'ont aussi activé)</string>
+    <string name="join_button">Rejoindre</string>
+
+    <string name="nearby_title">Qui est à proximité</string>
+
+    <string name="permissions_needed_title">Autorisations nécessaires</string>
+    <string name="permissions_needed_message">Sans les autorisations Bluetooth, l\'application ne peut pas trouver les personnes à proximité.</string>
+    <string name="ok_button">OK</string>
+    <string name="missing_fields_message">Entre ton pseudo, ton numéro de téléphone, et confirme que tu as 18 ans ou plus.</string>
+    <string name="match_title">Intérêt mutuel !</string>
+    <string name="match_message">Veux-tu révéler ton numéro de téléphone ?</string>
+    <string name="yes_button">Oui</string>
+    <string name="not_now_button">Pas maintenant</string>
+    <string name="their_phone_format">Son numéro : %1$s 🎉</string>
+
+    <string name="badge_prefix">🏳️‍🌈</string>
+    <string name="like_button">♥</string>
+    <string name="liked_button">♥ Aimé</string>
+</resources>

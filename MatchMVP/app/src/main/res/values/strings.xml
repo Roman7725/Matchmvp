@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Match MVP</string>
+
+    <!-- Экран входа -->
+    <string name="nickname_hint">Твой никнейм</string>
+    <string name="phone_hint">Твой номер телефона (раскроется только при мэтче)</string>
+    <string name="age_check_label">Мне есть 18 лет</string>
+    <string name="badge_check_label">Показывать значок сообщества (виден только тем, у кого он тоже включён)</string>
+    <string name="join_button">Войти в эфир</string>
+
+    <!-- Экран "кто рядом" -->
+    <string name="nearby_title">Кто рядом</string>
+
+    <!-- Диалоги -->
+    <string name="permissions_needed_title">Нужны разрешения</string>
+    <string name="permissions_needed_message">Без Bluetooth-разрешений приложение не может находить людей рядом.</string>
+    <string name="ok_button">Ок</string>
+    <string name="missing_fields_message">Введи никнейм, номер телефона и подтверди, что тебе есть 18 лет.</string>
+    <string name="match_title">Взаимная симпатия!</string>
+    <string name="match_message">Хочешь показать свой номер телефона?</string>
+    <string name="yes_button">Да</string>
+    <string name="not_now_button">Не сейчас</string>
+    <string name="their_phone_format">Его/её номер: %1$s 🎉</string>
+
+    <!-- Значок сообщества в списке -->
+    <string name="badge_prefix">🏳️‍🌈</string>
+    <string name="like_button">♥</string>
+    <string name="liked_button">♥ Понравился</string>
+</resources>

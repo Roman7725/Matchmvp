@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ФИКС: раньше манифест использовал системную тему Android
+         (Theme.Material.Light.NoActionBar), а в build.gradle при этом
+         подключена библиотека AppCompat — это прямой конфликт, который
+         вызывает крэш при запуске: "You need to use a Theme.AppCompat
+         theme (or descendant) with this activity". Теперь тема правильно
+         наследуется от AppCompat, конфликта нет. -->
+    <style name="Theme.MatchMVP" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorPrimary">#0A0118</item>
+        <item name="colorPrimaryDark">#0A0118</item>
+        <item name="colorAccent">#00F0FF</item>
+        <item name="android:windowBackground">#0A0118</item>
+    </style>
+</resources>

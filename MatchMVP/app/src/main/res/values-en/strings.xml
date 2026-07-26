@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Match MVP</string>
+
+    <string name="nickname_hint">Your nickname</string>
+    <string name="phone_hint">Your phone number (revealed only on a match)</string>
+    <string name="age_check_label">I am 18 years or older</string>
+    <string name="badge_check_label">Show community badge (visible only to people who also enabled it)</string>
+    <string name="join_button">Join the airwaves</string>
+
+    <string name="nearby_title">Who\'s nearby</string>
+
+    <string name="permissions_needed_title">Permissions needed</string>
+    <string name="permissions_needed_message">Without Bluetooth permissions the app can\'t find people nearby.</string>
+    <string name="ok_button">OK</string>
+    <string name="missing_fields_message">Enter your nickname, phone number, and confirm you\'re 18+.</string>
+    <string name="match_title">Mutual interest!</string>
+    <string name="match_message">Want to reveal your phone number?</string>
+    <string name="yes_button">Yes</string>
+    <string name="not_now_button">Not now</string>
+    <string name="their_phone_format">Their number: %1$s 🎉</string>
+
+    <string name="badge_prefix">🏳️‍🌈</string>
+    <string name="like_button">♥</string>
+    <string name="liked_button">♥ Liked</string>
+</resources>

@@ -1,0 +1,61 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Участник мероприятия — виден всем в том же событии (только
+    // анонимный avatarId, никаких личных данных).
+    match /events/{eventCode}/participants/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Лайки — КЛЮЧЕВОЕ ограничение приватности:
+    // можно только СОЗДАТЬ свой лайк, но НИКТО (кроме серверной
+    // Cloud Function через Admin SDK) не может их читать.
+    // Это и защищает секретность до мэтча.
+    match /events/{eventCode}/likes/{likeId} {
+      allow create: if request.auth != null
+                     && request.resource.data.from == request.auth.uid;
+      allow read: if false;
+      allow update, delete: if false;
+    }
+
+    // Значок сообщества — принципиально ОТДЕЛЬНАЯ коллекция от общего
+    // публичного профиля участника. Прочитать чужой флаг может только
+    // тот, у кого САМОГО этот флаг включён — иначе видимость значка
+    // означала бы утечку чувствительной информации всем подряд рядом,
+    // а не только взаимно согласившимся.
+    match /events/{eventCode}/community/{uid} {
+      allow read: if request.auth != null
+                   && get(/databases/$(database)/documents/events/$(eventCode)/community/$(request.auth.uid)).data.enabled == true;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Приватные данные (номер телефона) — читать может ТОЛЬКО сам
+    // владелец, никто больше, никогда. Раскрытие другому человеку
+    // идёт исключительно через отдельную коллекцию reveals ниже,
+    // и только после того, как сам владелец явно на это согласился.
+    match /events/{eventCode}/private/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Мэтчи — создаются только Cloud Function-ом (Admin SDK обходит
+    // правила), читать может только сам участник пары.
+    match /events/{eventCode}/matches/{matchId} {
+      allow read: if request.auth != null
+                   && request.auth.uid in resource.data.participants;
+      allow write: if false; // только сервер
+    }
+
+    // Раскрытие никнейма после мэтча — писать может только сам
+    // участник за себя, читать — только участники того же мэтча.
+    match /events/{eventCode}/reveals/{revealId} {
+      allow create: if request.auth != null
+                     && request.resource.data.uid == request.auth.uid;
+      allow read: if request.auth != null
+                   && request.auth.uid in resource.data.matchParticipants;
+    }
+  }
+}
