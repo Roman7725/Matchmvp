@@ -26,4 +26,7 @@ jobs:
 
     - name: Build with Gradle
       working-directory: ./MatchMVP
+      env:
+        JAVA_OPTS: "-Xmx2048m"
+        GRADLE_OPTS: "-Xmx2048m"
       run: ./gradlew assembleDebug --stacktrace
