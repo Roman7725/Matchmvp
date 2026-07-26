@@ -20,8 +20,7 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-
+    # Запускаем сборку прямо через системный Gradle в папке MatchMVP
     - name: Build with Gradle
-      run: ./gradlew assembleDebug --stacktrace
+      working-directory: ./MatchMVP
+      run: gradle assembleDebug --stacktrace
