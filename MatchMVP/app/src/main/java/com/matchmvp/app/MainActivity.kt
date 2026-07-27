@@ -245,7 +245,7 @@ class MainActivity : AppCompatActivity() {
                         repository.revealPhoneTo(matchId, otherUid)
                         repository.listenForReveal(matchId, otherUid) { theirPhone ->
                             runOnUiThread {
-                                AlertDialog.Builder(this)
+                                AlertDialog.Builder(this@MainActivity)
                                     .setMessage(getString(R.string.their_phone_format, theirPhone))
                                     .setPositiveButton(getString(R.string.ok_button), null)
                                     .show()
