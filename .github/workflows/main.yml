@@ -20,7 +20,12 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    # Запускаем сборку напрямую через JAR-файл Gradle Wrapper, минуя скрипт gradlew
     - name: Build with Gradle
       working-directory: ./MatchMVP
       run: java -classpath gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain assembleDebug --stacktrace
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-debug
+        path: MatchMVP/app/build/outputs/apk/debug/app-debug.apk
