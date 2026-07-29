@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "1234567890",
-    "project_id": "match-mvp-dummy",
-    "storage_bucket": "match-mvp-dummy.appspot.com"
+    "project_number": "477275672529",
+    "project_id": "matchmvp-e2e54",
+    "storage_bucket": "matchmvp-e2e54.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1234567890:android:1234567890",
+        "mobilesdk_app_id": "1:477275672529:android:75e807c8be554058ae9af0",
         "android_client_info": {
           "package_name": "com.matchmvp.app"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDummyKeyForBuildPurposeOnly"
+          "current_key": "AIzaSyD1ONu6j6qIlk3R2buHdg60aJYKR-nQU88"
         }
       ],
       "services": {
