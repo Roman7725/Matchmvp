@@ -5,71 +5,59 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
-import android.os.ParcelUuid
-import android.util.Log
+import java.nio.charset.StandardCharsets
 
-data class NearbyPeer(
-    val anonymousId: String,
-    val rssi: Int,       // сила сигнала — можно использовать для "теплее/холоднее"
-    val lastSeenMs: Long
-)
+data class NearbyPeer(val anonymousId: String)
 
-/**
- * Сканирует эфир в поиске анонимных ID других участников.
- * Не читает и не хранит ничего, кроме ID и силы сигнала.
- */
 class BleScanner(
-    private val adapter: BluetoothAdapter,
-    private val onPeerFound: (NearbyPeer) -> Unit
+    private val bluetoothAdapter: BluetoothAdapter,
+    private val onPeerDiscovered: (NearbyPeer) -> Unit
 ) {
-    companion object {
-        private const val TAG = "BleScanner"
-    }
 
-    private val scanner get() = adapter.bluetoothLeScanner
+    private var scanner = bluetoothAdapter.bluetoothLeScanner
+    private var callback: ScanCallback? = null
 
     fun startScanning() {
-        // ВАЖНО: фильтруем по service DATA (а не по списку service UUID),
-        // потому что рекламодатель (BleAdvertiser) больше не включает
-        // отдельный список UUID — это было лишним и раздувало пакет
-        // сверх лимита в 31 байт. Маска из нулевых байт означает
-        // "неважно, какое конкретно содержимое" — фильтруем только
-        // по совпадению UUID сервиса.
-        val emptyMask = ByteArray(6) { 0x00 }
-        val emptyData = ByteArray(6) { 0x00 }
+        scanner = bluetoothAdapter.bluetoothLeScanner
+        if (scanner == null) return
 
         val filter = ScanFilter.Builder()
-            .setServiceData(ParcelUuid(BleAdvertiser.SERVICE_UUID), emptyData, emptyMask)
+            .setServiceUuid(BleAdvertiser.SERVICE_UUID)
             .build()
 
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
 
-        scanner?.startScan(listOf(filter), settings, callback)
+        callback = object : ScanCallback() {
+            override fun onScanResult(callbackType: Int, result: ScanResult) {
+                val serviceData = result.scanRecord?.getServiceData(BleAdvertiser.SERVICE_UUID) ?: return
+                val payload = String(serviceData, StandardCharsets.UTF_8)
+                if (payload.isNotEmpty()) {
+                    onPeerDiscovered(NearbyPeer(payload))
+                }
+            }
+
+            override fun onBatchScanResults(results: MutableList<ScanResult>) {
+                for (res in results) {
+                    onScanResult(ScanSettings.CALLBACK_TYPE_ALL_MATCHES, res)
+                }
+            }
+
+            override fun onScanFailed(errorCode: Int) {}
+        }
+
+        try {
+            scanner?.startScan(listOf(filter), settings, callback)
+        } catch (_: SecurityException) {}
     }
 
     fun stopScanning() {
-        scanner?.stopScan(callback)
-    }
-
-    private val callback = object : ScanCallback() {
-        override fun onScanResult(callbackType: Int, result: ScanResult) {
-            val serviceData = result.scanRecord
-                ?.getServiceData(ParcelUuid(BleAdvertiser.SERVICE_UUID)) ?: return
-
-            val anonymousId = String(serviceData, Charsets.UTF_8).trim('\u0000')
-            onPeerFound(
-                NearbyPeer(
-                    anonymousId = anonymousId,
-                    rssi = result.rssi,
-                    lastSeenMs = System.currentTimeMillis()
-                )
-            )
-        }
-
-        override fun onScanFailed(errorCode: Int) {
-            Log.e(TAG, "Сканирование не удалось, код: $errorCode")
-        }
+        try {
+            if (callback != null) {
+                scanner?.stopScan(callback)
+            }
+        } catch (_: SecurityException) {}
+        callback = null
     }
 }
