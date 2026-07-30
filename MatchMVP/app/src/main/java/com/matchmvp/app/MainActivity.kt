@@ -20,10 +20,6 @@ import kotlinx.coroutines.launch
 import com.google.firebase.firestore.ListenerRegistration
 import java.util.UUID
 
-/**
- * Event configuration code.
- * Participants with the same EVENT_CODE will discover each other.
- */
 private const val EVENT_CODE = "pilot-event-1"
 
 class MainActivity : AppCompatActivity() {
@@ -75,7 +71,6 @@ class MainActivity : AppCompatActivity() {
         val joinBtn = findViewById<Button>(R.id.joinBtn)
         val recyclerView = findViewById<RecyclerView>(R.id.peersRecyclerView)
 
-        // Safe lookup for leaveBtn to prevent compile error if missing in layout XML
         val leaveBtnId = resources.getIdentifier("leaveBtn", "id", packageName)
         val leaveBtn: Button? = if (leaveBtnId != 0) findViewById(leaveBtnId) else null
 
@@ -167,7 +162,9 @@ class MainActivity : AppCompatActivity() {
         advertiser = BleAdvertiser(btAdapter)
         scanner = BleScanner(btAdapter) { peer -> onPeerDiscovered(peer) }
 
-        advertiser.startAdvertising(myAnonymousId)
+        // Broadcast nickname and anonymous ID combined
+        val payload = "$myNickname:$myAnonymousId"
+        advertiser.startAdvertising(payload)
         scanner.startScanning()
     }
 
@@ -188,23 +185,14 @@ class MainActivity : AppCompatActivity() {
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
     private fun onPeerDiscovered(peer: NearbyPeer) {
-        discoveredPeers[peer.anonymousId] = peer
+        val parts = peer.anonymousId.split(":")
+        val nickname = if (parts.size >= 2) parts[0] else "User"
+        val anonId = if (parts.size >= 2) parts[1] else peer.anonymousId
 
-        if (!peerNicknames.containsKey(peer.anonymousId)) {
-            scope.launch {
-                val realUid = repository.resolveUidForAnonymousId(peer.anonymousId) ?: return@launch
-                val fetchedNickname = repository.getParticipantNickname(realUid) ?: "User"
-                peerNicknames[peer.anonymousId] = fetchedNickname
+        discoveredPeers[anonId] = NearbyPeer(anonId)
+        peerNicknames[anonId] = nickname
 
-                if (myBadgeEnabled) {
-                    val hasBadge = repository.hasCommunityBadge(realUid)
-                    peerBadges[peer.anonymousId] = hasBadge
-                }
-                scheduleUiUpdate()
-            }
-        } else {
-            scheduleUiUpdate()
-        }
+        scheduleUiUpdate()
     }
 
     private fun scheduleUiUpdate() {
@@ -215,12 +203,12 @@ class MainActivity : AppCompatActivity() {
             val uiList = discoveredPeers.keys.map { anonymousId ->
                 UiPeer(
                     uid = anonymousId,
-                    avatarLabel = peerNicknames[anonymousId] ?: "Scanning...",
+                    avatarLabel = peerNicknames[anonymousId] ?: "Nearby User",
                     hasBadge = peerBadges[anonymousId] == true
                 )
             }
             adapter.submitList(uiList)
-        }, 1000)
+        }, 500)
     }
 
     private fun onMatchFound(matchId: String, otherUid: String) {
