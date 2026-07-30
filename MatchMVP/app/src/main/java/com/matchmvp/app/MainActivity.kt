@@ -73,8 +73,11 @@ class MainActivity : AppCompatActivity() {
         val ageCheck = findViewById<CheckBox>(R.id.ageCheck)
         val badgeCheck = findViewById<CheckBox>(R.id.badgeCheck)
         val joinBtn = findViewById<Button>(R.id.joinBtn)
-        val leaveBtn = findViewById<Button>(R.id.leaveBtn) // Button for exit/logout
         val recyclerView = findViewById<RecyclerView>(R.id.peersRecyclerView)
+
+        // Safe lookup for leaveBtn to prevent compile error if missing in layout XML
+        val leaveBtnId = resources.getIdentifier("leaveBtn", "id", packageName)
+        val leaveBtn: Button? = if (leaveBtnId != 0) findViewById(leaveBtnId) else null
 
         adapter = PeerAdapter { peer ->
             scope.launch {
@@ -136,7 +139,6 @@ class MainActivity : AppCompatActivity() {
         scope.launch {
             try {
                 repository.signInAnonymously()
-                // Store actual nickname instead of random animal names
                 repository.registerParticipant(myNickname, myPhoneNumber, myAnonymousId)
                 repository.setCommunityVisible(myBadgeEnabled)
                 matchesListener = repository.listenForMatches { matchId, otherUid -> onMatchFound(matchId, otherUid) }
@@ -188,7 +190,6 @@ class MainActivity : AppCompatActivity() {
     private fun onPeerDiscovered(peer: NearbyPeer) {
         discoveredPeers[peer.anonymousId] = peer
 
-        // Fetch real user's nickname from Firestore instead of setting random avatar
         if (!peerNicknames.containsKey(peer.anonymousId)) {
             scope.launch {
                 val realUid = repository.resolveUidForAnonymousId(peer.anonymousId) ?: return@launch
@@ -255,4 +256,4 @@ class MainActivity : AppCompatActivity() {
         mainHandler.removeCallbacksAndMessages(null)
         scope.cancel()
     }
-}       
+}
