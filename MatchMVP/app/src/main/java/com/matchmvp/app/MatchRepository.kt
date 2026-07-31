@@ -101,23 +101,23 @@ class MatchRepository(private val eventCode: String) {
         val myUid = currentUid
         val myDoc = db.collection("events").document(eventCode)
             .collection("participants").document(myUid).get().await()
-        val myPhone = myDoc.getString("phone") ?: ""
+        val myPhone = myDoc.getString("phone") ?: "No phone"
+
+        val updateData = hashMapOf<String, Any>(
+            "phone_$myUid" to myPhone
+        )
 
         db.collection("events").document(eventCode)
             .collection("matches").document(matchId)
-            .collection("revealed_phones")
-            .document(myUid)
-            .set(mapOf("phone" to myPhone)).await()
+            .update(updateData).await()
     }
 
     suspend fun listenForReveal(matchId: String, otherUid: String, onPhoneRevealed: (String) -> Unit) {
         db.collection("events").document(eventCode)
             .collection("matches").document(matchId)
-            .collection("revealed_phones")
-            .document(otherUid)
             .addSnapshotListener { snapshot, e ->
                 if (e != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
-                val phone = snapshot.getString("phone")
+                val phone = snapshot.getString("phone_$otherUid")
                 if (phone != null) {
                     onPhoneRevealed(phone)
                 }
