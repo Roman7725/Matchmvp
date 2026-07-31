@@ -1,67 +1,91 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="20dp"
-    android:background="#0A0118">
+    android:background="#0D0B18">
 
     <!-- JOIN SCREEN -->
     <LinearLayout
         android:id="@+id/joinScreen"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:gravity="center_horizontal">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:layout_marginBottom="16dp">
+
+            <Button
+                android:id="@+id/langBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="EN / RU"
+                android:textSize="12sp"
+                android:textColor="#00E5FF"
+                android:background="?android:attr/selectableItemBackground"/>
+        </LinearLayout>
 
         <TextView
+            android:id="@+id/titleTv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="MATCH MVP"
-            android:textColor="#00F0FF"
-            android:textSize="22sp"
+            android:textSize="28sp"
             android:textStyle="bold"
-            android:layout_marginBottom="16dp" />
+            android:textColor="#00E5FF"
+            android:layout_marginBottom="32dp"/>
 
         <EditText
             android:id="@+id/nicknameInput"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@string/nickname_hint"
-            android:textColorHint="#88FFFFFF"
+            android:hint="Имя / Nickname"
+            android:textColorHint="#888888"
             android:textColor="#FFFFFF"
-            android:layout_marginBottom="12dp" />
+            android:inputType="textPersonName"
+            android:layout_marginBottom="16dp"/>
 
         <EditText
             android:id="@+id/phoneInput"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@string/phone_hint"
-            android:inputType="phone"
-            android:textColorHint="#88FFFFFF"
+            android:hint="Телефон / Phone number"
+            android:textColorHint="#888888"
             android:textColor="#FFFFFF"
-            android:layout_marginBottom="12dp" />
+            android:inputType="phone"
+            android:layout_marginBottom="24dp"/>
 
         <CheckBox
             android:id="@+id/ageCheck"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/age_check_label"
-            android:textColor="#CCFFFFFF"
-            android:layout_marginBottom="12dp" />
+            android:text="Мне есть 18 лет / I am 18 or older"
+            android:textColor="#FFFFFF"
+            android:layout_marginBottom="12dp"/>
 
         <CheckBox
             android:id="@+id/badgeCheck"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/badge_check_label"
-            android:textColor="#CCFFFFFF"
-            android:layout_marginBottom="16dp" />
+            android:text="Показывать значок сообщества\nShow community badge"
+            android:textColor="#CCCCCC"
+            android:textSize="13sp"
+            android:layout_marginBottom="32dp"/>
 
         <Button
             android:id="@+id/joinBtn"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/join_button" />
+            android:layout_height="54dp"
+            android:text="ВОЙТИ В ЭФИР / JOIN BROADCAST"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#000000"
+            android:backgroundTint="#E0E0E0"/>
 
     </LinearLayout>
 
@@ -71,23 +95,38 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
+        android:padding="16dp"
         android:visibility="gone">
 
-        <TextView
-            android:layout_width="wrap_content"
+        <RelativeLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/nearby_title"
-            android:textColor="#00F0FF"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="12dp" />
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:id="@+id/roomTitleTv"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Кто рядом / Nearby"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:textColor="#00E5FF"/>
+
+            <Button
+                android:id="@+id/leaveBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:text="Выйти / Leave"
+                android:textColor="#FF5252"
+                android:background="?android:attr/selectableItemBackground"/>
+        </RelativeLayout>
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/peersRecyclerView"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
+            android:layout_height="match_parent"/>
 
     </LinearLayout>
 
-</LinearLayout>
+</FrameLayout>
