@@ -10,6 +10,7 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -39,6 +40,8 @@ class MainActivity : AppCompatActivity() {
     private var myBadgeEnabled: Boolean = false
     private var matchesListener: ListenerRegistration? = null
 
+    private var isEnglish: Boolean = false
+
     private lateinit var joinScreen: LinearLayout
     private lateinit var roomScreen: LinearLayout
 
@@ -48,9 +51,11 @@ class MainActivity : AppCompatActivity() {
         if (results.values.all { it }) {
             startBleAndFirestore()
         } else {
+            val title = if (isEnglish) "Permissions required" else "Требуются разрешения"
+            val msg = if (isEnglish) "Bluetooth and location permissions are required to discover nearby participants." else "Для поиска участников рядом требуются разрешения на Bluetooth и геолокацию."
             AlertDialog.Builder(this)
-                .setTitle("Permissions required")
-                .setMessage("Bluetooth and location permissions are required to discover nearby participants.")
+                .setTitle(title)
+                .setMessage(msg)
                 .setPositiveButton("OK", null)
                 .show()
         }
@@ -69,10 +74,37 @@ class MainActivity : AppCompatActivity() {
         val ageCheck = findViewById<CheckBox>(R.id.ageCheck)
         val badgeCheck = findViewById<CheckBox>(R.id.badgeCheck)
         val joinBtn = findViewById<Button>(R.id.joinBtn)
+        val langBtn = findViewById<Button>(R.id.langBtn)
+        val roomTitleTv = findViewById<TextView>(R.id.roomTitleTv)
         val recyclerView = findViewById<RecyclerView>(R.id.peersRecyclerView)
 
         val leaveBtnId = resources.getIdentifier("leaveBtn", "id", packageName)
         val leaveBtn: Button? = if (leaveBtnId != 0) findViewById(leaveBtnId) else null
+
+        fun updateUiLanguage() {
+            if (isEnglish) {
+                nicknameInput.hint = "Nickname"
+                phoneInput.hint = "Phone number"
+                ageCheck.text = "I am 18 or older"
+                badgeCheck.text = "Show community badge\n(visible only to those who also turned it on)"
+                joinBtn.text = "JOIN BROADCAST"
+                roomTitleTv.text = "Nearby"
+                leaveBtn?.text = "Leave"
+            } else {
+                nicknameInput.hint = "Имя"
+                phoneInput.hint = "Телефон"
+                ageCheck.text = "Мне есть 18 лет"
+                badgeCheck.text = "Показывать значок сообщества\n(виден только тем, у кого он тоже включён)"
+                joinBtn.text = "ВОЙТИ В ЭФИР"
+                roomTitleTv.text = "Кто рядом"
+                leaveBtn?.text = "Выйти"
+            }
+        }
+
+        langBtn.setOnClickListener {
+            isEnglish = !isEnglish
+            updateUiLanguage()
+        }
 
         adapter = PeerAdapter { peer ->
             scope.launch {
@@ -87,8 +119,9 @@ class MainActivity : AppCompatActivity() {
             val nickname = nicknameInput.text.toString().trim()
             val phone = phoneInput.text.toString().trim()
             if (nickname.isEmpty() || phone.isEmpty() || !ageCheck.isChecked) {
+                val msg = if (isEnglish) "Please enter your nickname, phone number, and accept the terms." else "Пожалуйста, введите имя, телефон и подтвердите возраст."
                 AlertDialog.Builder(this)
-                    .setMessage("Please enter your nickname, phone number, and accept the terms.")
+                    .setMessage(msg)
                     .setPositiveButton("OK", null)
                     .show()
                 return@setOnClickListener
@@ -138,10 +171,12 @@ class MainActivity : AppCompatActivity() {
                 repository.setCommunityVisible(myBadgeEnabled)
                 matchesListener = repository.listenForMatches { matchId, otherUid -> onMatchFound(matchId, otherUid) }
             } catch (e: Exception) {
+                val title = if (isEnglish) "Connection Error" else "Ошибка подключения"
+                val msg = if (isEnglish) "Failed to connect to backend service.\n\nError details: ${e.javaClass.simpleName}: ${e.message}" else "Не удалось подключиться к серверу.\n\nДетали: ${e.javaClass.simpleName}: ${e.message}"
                 runOnUiThread {
                     AlertDialog.Builder(this@MainActivity)
-                        .setTitle("Connection Error")
-                        .setMessage("Failed to connect to backend service.\n\nError details: ${e.javaClass.simpleName}: ${e.message}")
+                        .setTitle(title)
+                        .setMessage(msg)
                         .setPositiveButton("OK", null)
                         .show()
                 }
@@ -152,8 +187,9 @@ class MainActivity : AppCompatActivity() {
         val btManager = getSystemService(BluetoothManager::class.java)
         val btAdapter: BluetoothAdapter? = btManager?.adapter
         if (btAdapter == null) {
+            val msg = if (isEnglish) "Bluetooth adapter not found. Nearby discovery is unavailable." else "Bluetooth не найден. Поиск устройств недоступен."
             AlertDialog.Builder(this)
-                .setMessage("Bluetooth adapter not found. Nearby discovery is unavailable.")
+                .setMessage(msg)
                 .setPositiveButton("OK", null)
                 .show()
             return
@@ -162,7 +198,6 @@ class MainActivity : AppCompatActivity() {
         advertiser = BleAdvertiser(btAdapter)
         scanner = BleScanner(btAdapter) { peer -> onPeerDiscovered(peer) }
 
-        // Broadcast nickname and anonymous ID combined
         val payload = "$myNickname:$myAnonymousId"
         advertiser.startAdvertising(payload)
         scanner.startScanning()
@@ -200,10 +235,11 @@ class MainActivity : AppCompatActivity() {
         uiUpdateScheduled = true
         mainHandler.postDelayed({
             uiUpdateScheduled = false
+            val defaultName = if (isEnglish) "Nearby User" else "Участник рядом"
             val uiList = discoveredPeers.keys.map { anonymousId ->
                 UiPeer(
                     uid = anonymousId,
-                    avatarLabel = peerNicknames[anonymousId] ?: "Nearby User",
+                    avatarLabel = peerNicknames[anonymousId] ?: defaultName,
                     hasBadge = peerBadges[anonymousId] == true
                 )
             }
@@ -215,25 +251,32 @@ class MainActivity : AppCompatActivity() {
         if (knownMatches.contains(matchId)) return
         knownMatches.add(matchId)
 
+        val title = if (isEnglish) "It's a Match! 🎉" else "Это Мэтч! 🎉"
+        val msg = if (isEnglish) "You both liked each other! Would you like to share your phone numbers?" else "Вы понравились друг другу! Хотите обменяться номерами телефонов?"
+        val posBtn = if (isEnglish) "Share Number" else "Поделиться номером"
+        val negBtn = if (isEnglish) "Not Now" else "Не сейчас"
+
         runOnUiThread {
             AlertDialog.Builder(this)
-                .setTitle("It's a Match! 🎉")
-                .setMessage("You both liked each other! Would you like to share your phone numbers?")
-                .setPositiveButton("Share Number") { _, _ ->
+                .setTitle(title)
+                .setMessage(msg)
+                .setPositiveButton(posBtn) { _, _ ->
                     scope.launch {
                         repository.revealPhoneTo(matchId, otherUid)
                         repository.listenForReveal(matchId, otherUid) { theirPhone ->
+                            val alertTitle = if (isEnglish) "Phone Number Shared" else "Номер получен"
+                            val alertMsg = if (isEnglish) "Their contact number: $theirPhone" else "Контактный номер: $theirPhone"
                             runOnUiThread {
                                 AlertDialog.Builder(this@MainActivity)
-                                    .setTitle("Phone Number Shared")
-                                    .setMessage("Their contact number: $theirPhone")
+                                    .setTitle(alertTitle)
+                                    .setMessage(alertMsg)
                                     .setPositiveButton("OK", null)
                                     .show()
                             }
                         }
                     }
                 }
-                .setNegativeButton("Not Now", null)
+                .setNegativeButton(negBtn, null)
                 .show()
         }
     }
