@@ -4,6 +4,9 @@ import android.Manifest
 import android.app.AlertDialog
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.widget.Button
@@ -11,6 +14,7 @@ import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -38,6 +42,7 @@ class MainActivity : AppCompatActivity() {
     private var myAnonymousId: String = UUID.randomUUID().toString().take(8)
     private var myNickname: String = ""
     private var myPhoneNumber: String = ""
+    private var myEmail: String = ""
     private var myBadgeEnabled: Boolean = false
     private var matchesListener: ListenerRegistration? = null
 
@@ -72,6 +77,7 @@ class MainActivity : AppCompatActivity() {
         roomScreen = findViewById(R.id.roomScreen)
         val nicknameInput = findViewById<EditText>(R.id.nicknameInput)
         val phoneInput = findViewById<EditText>(R.id.phoneInput)
+        val emailInput = findViewById<EditText>(R.id.emailInput)
         val ageCheck = findViewById<CheckBox>(R.id.ageCheck)
         val badgeCheck = findViewById<CheckBox>(R.id.badgeCheck)
         val joinBtn = findViewById<Button>(R.id.joinBtn)
@@ -86,6 +92,7 @@ class MainActivity : AppCompatActivity() {
             if (isEnglish) {
                 nicknameInput.hint = "Nickname"
                 phoneInput.hint = "Phone number"
+                emailInput.hint = "Email (optional)"
                 ageCheck.text = "I am 18 or older"
                 badgeCheck.text = "Show community badge\n(visible only to those who also turned it on)"
                 joinBtn.text = "JOIN BROADCAST"
@@ -94,6 +101,7 @@ class MainActivity : AppCompatActivity() {
             } else {
                 nicknameInput.hint = "Имя"
                 phoneInput.hint = "Телефон"
+                emailInput.hint = "Email (необязательно)"
                 ageCheck.text = "Мне есть 18 лет"
                 badgeCheck.text = "Показывать значок сообщества\n(виден только тем, у кого он тоже включён)"
                 joinBtn.text = "ВОЙТИ В ЭФИР"
@@ -119,6 +127,7 @@ class MainActivity : AppCompatActivity() {
         joinBtn.setOnClickListener {
             val nickname = nicknameInput.text.toString().trim()
             val phone = phoneInput.text.toString().trim()
+            val email = emailInput.text.toString().trim()
             if (nickname.isEmpty() || phone.isEmpty() || !ageCheck.isChecked) {
                 val msg = if (isEnglish) "Please enter your nickname, phone number, and accept the terms." else "Пожалуйста, введите имя, телефон и подтвердите возраст."
                 AlertDialog.Builder(this)
@@ -129,6 +138,7 @@ class MainActivity : AppCompatActivity() {
             }
             myNickname = nickname
             myPhoneNumber = phone
+            myEmail = email
             myBadgeEnabled = badgeCheck.isChecked
             
             joinScreen.visibility = LinearLayout.GONE
@@ -168,7 +178,7 @@ class MainActivity : AppCompatActivity() {
         scope.launch {
             try {
                 repository.signInAnonymously()
-                repository.registerParticipant(myNickname, myPhoneNumber, myAnonymousId)
+                repository.registerParticipant(myNickname, myPhoneNumber, myEmail, myAnonymousId)
                 repository.setCommunityVisible(myBadgeEnabled)
                 matchesListener = repository.listenForMatches { matchId, otherUid -> onMatchFound(matchId, otherUid) }
             } catch (e: Exception) {
@@ -251,19 +261,35 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onMatchFound(matchId: String, otherUid: String) {
-        // Запускаем слушатель сразу при мэтче: если собеседник поделится номером, мы его мгновенно увидим
         scope.launch {
-            repository.listenForReveal(matchId, otherUid) { theirPhone ->
-                if (!shownPhones.contains(matchId)) {
-                    shownPhones.add(matchId)
-                    val alertTitle = if (isEnglish) "Contact Shared!" else "Контакт получен!"
-                    val alertMsg = if (isEnglish) "User shared their phone number with you: $theirPhone" else "Пользователь поделился с вами номером телефона: $theirPhone"
-                    runOnUiThread {
-                        AlertDialog.Builder(this@MainActivity)
-                            .setTitle(alertTitle)
-                            .setMessage(alertMsg)
-                            .setPositiveButton("OK", null)
-                            .show()
+            repository.listenForReveal(matchId, otherUid) { phone, email ->
+                val key = "$matchId:${phone.orEmpty()}:${email.orEmpty()}"
+                if (!shownPhones.contains(key)) {
+                    shownPhones.add(key)
+
+                    val contactText = buildString {
+                        if (!phone.isNull_or_Empty()) append("Phone: $phone\n")
+                        if (!email.isNullOrEmpty()) append("Email: $email")
+                    }.trim()
+
+                    if (contactText.isNotEmpty()) {
+                        val alertTitle = if (isEnglish) "Contact Received! 🎉" else "Контакт получен! 🎉"
+                        val copyLabel = if (isEnglish) "Copy" else "Скопировать"
+                        val toastMsg = if (isEnglish) "Copied to clipboard" else "Скопировано в буфер обмена"
+
+                        runOnUiThread {
+                            AlertDialog.Builder(this@MainActivity)
+                                .setTitle(alertTitle)
+                                .setMessage(contactText)
+                                .setPositiveButton(copyLabel) { _, _ ->
+                                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    val clip = ClipData.newPlainText("Contact Info", contactText)
+                                    clipboard.setPrimaryClip(clip)
+                                    Toast.makeText(this@MainActivity, toastMsg, Toast.LENGTH_SHORT).show()
+                                }
+                                .setNegativeButton("OK", null)
+                                .show()
+                        }
                     }
                 }
             }
@@ -273,23 +299,30 @@ class MainActivity : AppCompatActivity() {
         knownMatches.add(matchId)
 
         val title = if (isEnglish) "It's a Match! 🎉" else "Это Мэтч! 🎉"
-        val msg = if (isEnglish) "You both liked each other! Would you like to share your phone number?" else "Вы понравились друг другу! Хотите поделиться своим номером телефона?"
-        val posBtn = if (isEnglish) "Share Number" else "Поделиться номером"
-        val negBtn = if (isEnglish) "Not Now" else "Не сейчас"
+        val msg = if (isEnglish) "You both liked each other! What contacts do you want to share?" else "Вы понравились друг другу! Какими контактами хотите поделиться?"
+        
+        val options = if (isEnglish) arrayOf("Phone number", "Email") else arrayOf("Номер телефона", "Email")
+        val checkedItems = booleanArrayOf(true, myEmail.isNotEmpty())
 
         runOnUiThread {
             AlertDialog.Builder(this)
                 .setTitle(title)
-                .setMessage(msg)
-                .setPositiveButton(posBtn) { _, _ ->
+                .setMultiChoiceItems(options, checkedItems) { _, which, isChecked ->
+                    checkedItems[which] = isChecked
+                }
+                .setPositiveButton(if (isEnglish) "Share" else "Поделиться") { _, _ ->
+                    val sharePhone = checkedItems[0]
+                    val shareEmail = checkedItems[1]
                     scope.launch {
-                        repository.revealPhoneTo(matchId, otherUid)
+                        repository.revealContactsTo(matchId, sharePhone, shareEmail)
                     }
                 }
-                .setNegativeButton(negBtn, null)
+                .setNegativeButton(if (isEnglish) "Not Now" else "Не сейчас", null)
                 .show()
         }
     }
+
+    private fun String?.isNull_or_Empty(): Boolean = this == null || this.isEmpty()
 
     override fun onDestroy() {
         super.onDestroy()
