@@ -38,7 +38,7 @@
             android:textSize="28sp"
             android:textStyle="bold"
             android:textColor="#00E5FF"
-            android:layout_marginBottom="32dp"/>
+            android:layout_marginBottom="24dp"/>
 
         <EditText
             android:id="@+id/nicknameInput"
@@ -48,7 +48,7 @@
             android:textColorHint="#888888"
             android:textColor="#FFFFFF"
             android:inputType="textPersonName"
-            android:layout_marginBottom="16dp"/>
+            android:layout_marginBottom="12dp"/>
 
         <EditText
             android:id="@+id/phoneInput"
@@ -58,7 +58,17 @@
             android:textColorHint="#888888"
             android:textColor="#FFFFFF"
             android:inputType="phone"
-            android:layout_marginBottom="24dp"/>
+            android:layout_marginBottom="12dp"/>
+
+        <EditText
+            android:id="@+id/emailInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Email (опционально)"
+            android:textColorHint="#888888"
+            android:textColor="#FFFFFF"
+            android:inputType="textEmailAddress"
+            android:layout_marginBottom="20dp"/>
 
         <CheckBox
             android:id="@+id/ageCheck"
@@ -75,7 +85,7 @@
             android:text="Показывать значок сообщества\nShow community badge"
             android:textColor="#CCCCCC"
             android:textSize="13sp"
-            android:layout_marginBottom="32dp"/>
+            android:layout_marginBottom="24dp"/>
 
         <Button
             android:id="@+id/joinBtn"
