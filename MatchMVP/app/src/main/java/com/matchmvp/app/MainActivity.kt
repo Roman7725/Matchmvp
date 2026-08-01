@@ -9,6 +9,10 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Vibrator
+import android.os.VibrationEffect
+import android.os.Build
+import android.util.Patterns
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
@@ -36,6 +40,9 @@ class MainActivity : AppCompatActivity() {
 
     private val scope = MainScope()
     private val discoveredPeers = mutableMapOf<String, NearbyPeer>()
+    private val lastSeenTimes = mutableMapOf<String, Long>()
+    private val blockedUsers = mutableSetOf<String>()
+    
     private val knownMatches = mutableSetOf<String>()
     private val shownPhones = mutableSetOf<String>()
     
@@ -50,6 +57,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var joinScreen: LinearLayout
     private lateinit var roomScreen: LinearLayout
+    private lateinit var radarStatusTv: TextView
 
     private val requestPermissionLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
@@ -58,7 +66,7 @@ class MainActivity : AppCompatActivity() {
             startBleAndFirestore()
         } else {
             val title = if (isEnglish) "Permissions required" else "Требуются разрешения"
-            val msg = if (isEnglish) "Bluetooth and location permissions are required to discover nearby participants." else "Для поиска участников рядом требуются разрешения на Bluetooth и геолокацию."
+            val msg = if (isEnglish) "Bluetooth and location permissions are required." else "Требуются разрешения на Bluetooth и геолокацию."
             AlertDialog.Builder(this)
                 .setTitle(title)
                 .setMessage(msg)
@@ -75,6 +83,8 @@ class MainActivity : AppCompatActivity() {
 
         joinScreen = findViewById(R.id.joinScreen)
         roomScreen = findViewById(R.id.roomScreen)
+        radarStatusTv = findViewById(R.id.radarStatusTv)
+        
         val nicknameInput = findViewById<EditText>(R.id.nicknameInput)
         val phoneInput = findViewById<EditText>(R.id.phoneInput)
         val emailInput = findViewById<EditText>(R.id.emailInput)
@@ -97,6 +107,7 @@ class MainActivity : AppCompatActivity() {
                 badgeCheck.text = "Show community badge\n(visible only to those who also turned it on)"
                 joinBtn.text = "JOIN BROADCAST"
                 roomTitleTv.text = "Nearby"
+                radarStatusTv.text = "Scanning for nearby participants..."
                 leaveBtn?.text = "Leave"
             } else {
                 nicknameInput.hint = "Имя"
@@ -106,6 +117,7 @@ class MainActivity : AppCompatActivity() {
                 badgeCheck.text = "Показывать значок сообщества\n(виден только тем, у кого он тоже включён)"
                 joinBtn.text = "ВОЙТИ В ЭФИР"
                 roomTitleTv.text = "Кто рядом"
+                radarStatusTv.text = "Поиск участников рядом..."
                 leaveBtn?.text = "Выйти"
             }
         }
@@ -115,9 +127,15 @@ class MainActivity : AppCompatActivity() {
             updateUiLanguage()
         }
 
+        // Клик по карточке пользователя -> Нажатие сердечка + возможность заблокировать
         adapter = PeerAdapter { peer ->
             scope.launch {
                 val realUid = repository.resolveUidForAnonymousId(peer.uid) ?: return@launch
+                if (blockedUsers.contains(realUid)) {
+                    val msg = if (isEnglish) "User is blocked." else "Пользователь заблокирован."
+                    Toast.makeText(this@MainActivity, msg, Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
                 repository.sendLike(realUid)
             }
         }
@@ -128,14 +146,28 @@ class MainActivity : AppCompatActivity() {
             val nickname = nicknameInput.text.toString().trim()
             val phone = phoneInput.text.toString().trim()
             val email = emailInput.text.toString().trim()
-            if (nickname.isEmpty() || phone.isEmpty() || !ageCheck.isChecked) {
-                val msg = if (isEnglish) "Please enter your nickname, phone number, and accept the terms." else "Пожалуйста, введите имя, телефон и подтвердите возраст."
-                AlertDialog.Builder(this)
-                    .setMessage(msg)
-                    .setPositiveButton("OK", null)
-                    .show()
+
+            // Валидация номера (только цифры и плюс, длина 7-15)
+            val cleanPhone = phone.replace(Regex("[^0-9]"), "")
+            if (cleanPhone.length < 7 || cleanPhone.length > 15) {
+                val msg = if (isEnglish) "Please enter a valid phone number (7 to 15 digits)." else "Введите корректный номер телефона (от 7 до 15 цифр)."
+                AlertDialog.Builder(this).setMessage(msg).setPositiveButton("OK", null).show()
                 return@setOnClickListener
             }
+
+            // Валидация Email если введен
+            if (email.isNotEmpty() && !Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                val msg = if (isEnglish) "Please enter a valid email address." else "Введите корректный адрес email."
+                AlertDialog.Builder(this).setMessage(msg).setPositiveButton("OK", null).show()
+                return@setOnClickListener
+            }
+
+            if (nickname.isEmpty() || !ageCheck.isChecked) {
+                val msg = if (isEnglish) "Please fill in all required fields and confirm age." else "Пожалуйста, заполните все обязательные поля и подтвердите возраст."
+                AlertDialog.Builder(this).setMessage(msg).setPositiveButton("OK", null).show()
+                return@setOnClickListener
+            }
+
             myNickname = nickname
             myPhoneNumber = phone
             myEmail = email
@@ -151,12 +183,14 @@ class MainActivity : AppCompatActivity() {
             roomScreen.visibility = LinearLayout.GONE
             joinScreen.visibility = LinearLayout.VISIBLE
         }
+
+        startCleanupTask()
     }
 
     private fun ensurePermissionsThenStart() {
         val needed = mutableListOf<String>()
 
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             needed.add(Manifest.permission.BLUETOOTH_ADVERTISE)
             needed.add(Manifest.permission.BLUETOOTH_SCAN)
             needed.add(Manifest.permission.BLUETOOTH_CONNECT)
@@ -175,6 +209,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startBleAndFirestore() {
+        val btManager = getSystemService(BluetoothManager::class.java)
+        val btAdapter: BluetoothAdapter? = btManager?.adapter
+        
+        if (btAdapter == null || !btAdapter.isEnabled) {
+            val msg = if (isEnglish) "Please enable Bluetooth to continue." else "Пожалуйста, включите Bluetooth для работы поиска."
+            AlertDialog.Builder(this).setMessage(msg).setPositiveButton("OK", null).show()
+            return
+        }
+
         scope.launch {
             try {
                 repository.signInAnonymously()
@@ -183,27 +226,12 @@ class MainActivity : AppCompatActivity() {
                 matchesListener = repository.listenForMatches { matchId, otherUid -> onMatchFound(matchId, otherUid) }
             } catch (e: Exception) {
                 val title = if (isEnglish) "Connection Error" else "Ошибка подключения"
-                val msg = if (isEnglish) "Failed to connect to backend service.\n\nError details: ${e.javaClass.simpleName}: ${e.message}" else "Не удалось подключиться к серверу.\n\nДетали: ${e.javaClass.simpleName}: ${e.message}"
+                val msg = if (isEnglish) "Failed to connect to server: ${e.message}" else "Не удалось подключиться к серверу: ${e.message}"
                 runOnUiThread {
-                    AlertDialog.Builder(this@MainActivity)
-                        .setTitle(title)
-                        .setMessage(msg)
-                        .setPositiveButton("OK", null)
-                        .show()
+                    AlertDialog.Builder(this@MainActivity).setTitle(title).setMessage(msg).setPositiveButton("OK", null).show()
                 }
                 return@launch
             }
-        }
-
-        val btManager = getSystemService(BluetoothManager::class.java)
-        val btAdapter: BluetoothAdapter? = btManager?.adapter
-        if (btAdapter == null) {
-            val msg = if (isEnglish) "Bluetooth adapter not found. Nearby discovery is unavailable." else "Bluetooth не найден. Поиск устройств недоступен."
-            AlertDialog.Builder(this)
-                .setMessage(msg)
-                .setPositiveButton("OK", null)
-                .show()
-            return
         }
 
         advertiser = BleAdvertiser(btAdapter)
@@ -220,6 +248,7 @@ class MainActivity : AppCompatActivity() {
         matchesListener?.remove()
         matchesListener = null
         discoveredPeers.clear()
+        lastSeenTimes.clear()
         peerNicknames.clear()
         peerBadges.clear()
         knownMatches.clear()
@@ -237,10 +266,31 @@ class MainActivity : AppCompatActivity() {
         val nickname = if (parts.size >= 2) parts[0] else "User"
         val anonId = if (parts.size >= 2) parts[1] else peer.anonymousId
 
+        if (blockedUsers.contains(anonId)) return
+
         discoveredPeers[anonId] = NearbyPeer(anonId)
         peerNicknames[anonId] = nickname
+        lastSeenTimes[anonId] = System.currentTimeMillis()
 
         scheduleUiUpdate()
+    }
+
+    // Автоматическое удаление пропавших устройств через 45 секунд
+    private fun startCleanupTask() {
+        mainHandler.postDelayed(object : Runnable {
+            override fun run() {
+                val now = System.currentTimeMillis()
+                val expired = lastSeenTimes.filter { now - it.value > 45000 }.keys
+                for (id in expired) {
+                    discoveredPeers.remove(id)
+                    lastSeenTimes.remove(id)
+                }
+                if (expired.isNotEmpty()) {
+                    scheduleUiUpdate()
+                }
+                mainHandler.postDelayed(this, 10000)
+            }
+        }, 10000)
     }
 
     private fun scheduleUiUpdate() {
@@ -260,7 +310,24 @@ class MainActivity : AppCompatActivity() {
         }, 500)
     }
 
+    private fun triggerVibration() {
+        try {
+            val v = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                v.vibrate(VibrationEffect.createOneShot(400, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                v.vibrate(400)
+            }
+        } catch (e: Exception) {
+            // Игнорируем если вибро не поддерживается
+        }
+    }
+
     private fun onMatchFound(matchId: String, otherUid: String) {
+        if (blockedUsers.contains(otherUid)) return
+
+        triggerVibration()
+
         scope.launch {
             repository.listenForReveal(matchId, otherUid) { phone, email ->
                 val key = "$matchId:${phone.orEmpty()}:${email.orEmpty()}"
@@ -268,7 +335,7 @@ class MainActivity : AppCompatActivity() {
                     shownPhones.add(key)
 
                     val contactText = buildString {
-                        if (!phone.isNull_or_Empty()) append("Phone: $phone\n")
+                        if (!phone.isNullOrEmpty()) append("Phone: $phone\n")
                         if (!email.isNullOrEmpty()) append("Email: $email")
                     }.trim()
 
@@ -299,8 +366,6 @@ class MainActivity : AppCompatActivity() {
         knownMatches.add(matchId)
 
         val title = if (isEnglish) "It's a Match! 🎉" else "Это Мэтч! 🎉"
-        val msg = if (isEnglish) "You both liked each other! What contacts do you want to share?" else "Вы понравились друг другу! Какими контактами хотите поделиться?"
-        
         val options = if (isEnglish) arrayOf("Phone number", "Email") else arrayOf("Номер телефона", "Email")
         val checkedItems = booleanArrayOf(true, myEmail.isNotEmpty())
 
@@ -317,12 +382,34 @@ class MainActivity : AppCompatActivity() {
                         repository.revealContactsTo(matchId, sharePhone, shareEmail)
                     }
                 }
+                .setNeutralButton(if (isEnglish) "Report / Block" else "Пожаловаться") { _, _ ->
+                    showReportDialog(otherUid)
+                }
                 .setNegativeButton(if (isEnglish) "Not Now" else "Не сейчас", null)
                 .show()
         }
     }
 
-    private fun String?.isNull_or_Empty(): Boolean = this == null || this.isEmpty()
+    private fun showReportDialog(targetUid: String) {
+        val title = if (isEnglish) "Report User" else "Пожаловаться на пользователя"
+        val reasons = if (isEnglish) arrayOf("Inappropriate behavior", "Spam", "Fake profile") else arrayOf("Неадекватное поведение", "Спам", "Фейковый профиль")
+
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(reasons) { _, which ->
+                val reason = reasons[which]
+                blockedUsers.add(targetUid)
+                discoveredPeers.remove(targetUid)
+                scheduleUiUpdate()
+                scope.launch {
+                    repository.reportUser(targetUid, reason)
+                }
+                val msg = if (isEnglish) "User reported and blocked." else "Жалоба отправлена, пользователь заблокирован."
+                Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
 
     override fun onDestroy() {
         super.onDestroy()
