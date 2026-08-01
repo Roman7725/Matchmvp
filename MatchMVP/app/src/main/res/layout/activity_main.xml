@@ -113,7 +113,7 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginBottom="16dp">
+            android:layout_marginBottom="12dp">
 
             <TextView
                 android:id="@+id/roomTitleTv"
@@ -135,6 +135,32 @@
                 android:textColor="#FF5252"
                 android:textSize="13sp"
                 android:background="?android:attr/selectableItemBackground"/>
+        </LinearLayout>
+
+        <!-- STATUS RADAR BAR -->
+        <LinearLayout
+            android:id="@+id/radarStatusLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="8dp"
+            android:layout_marginBottom="8dp"
+            android:background="#1A00E5FF">
+
+            <ProgressBar
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginEnd="8dp"
+                android:indeterminate="true"/>
+
+            <TextView
+                android:id="@+id/radarStatusTv"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Поиск устройств рядом..."
+                android:textColor="#00E5FF"
+                android:textSize="12sp"/>
         </LinearLayout>
 
         <androidx.recyclerview.widget.RecyclerView
