@@ -65,6 +65,16 @@ class MatchRepository(private val eventCode: String) {
         }
     }
 
+    suspend fun reportUser(targetUid: String, reason: String) {
+        val reportData = hashMapOf(
+            "reporter" to currentUid,
+            "reportedUser" to targetUid,
+            "reason" to reason,
+            "timestamp" to FieldValue.serverTimestamp()
+        )
+        db.collection("reports").add(reportData).await()
+    }
+
     private suspend fun createMatch(uid1: String, uid2: String) {
         val matchId = if (uid1 < uid2) "${uid1}_$uid2" else "${uid2}_$uid1"
         val matchData = hashMapOf(
