@@ -33,6 +33,7 @@ class MainActivity : AppCompatActivity() {
     private val scope = MainScope()
     private val discoveredPeers = mutableMapOf<String, NearbyPeer>()
     private val knownMatches = mutableSetOf<String>()
+    private val shownPhones = mutableSetOf<String>()
     
     private var myAnonymousId: String = UUID.randomUUID().toString().take(8)
     private var myNickname: String = ""
@@ -211,6 +212,8 @@ class MainActivity : AppCompatActivity() {
         discoveredPeers.clear()
         peerNicknames.clear()
         peerBadges.clear()
+        knownMatches.clear()
+        shownPhones.clear()
         adapter.submitList(emptyList())
     }
 
@@ -248,11 +251,29 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onMatchFound(matchId: String, otherUid: String) {
+        // Запускаем слушатель сразу при мэтче: если собеседник поделится номером, мы его мгновенно увидим
+        scope.launch {
+            repository.listenForReveal(matchId, otherUid) { theirPhone ->
+                if (!shownPhones.contains(matchId)) {
+                    shownPhones.add(matchId)
+                    val alertTitle = if (isEnglish) "Contact Shared!" else "Контакт получен!"
+                    val alertMsg = if (isEnglish) "User shared their phone number with you: $theirPhone" else "Пользователь поделился с вами номером телефона: $theirPhone"
+                    runOnUiThread {
+                        AlertDialog.Builder(this@MainActivity)
+                            .setTitle(alertTitle)
+                            .setMessage(alertMsg)
+                            .setPositiveButton("OK", null)
+                            .show()
+                    }
+                }
+            }
+        }
+
         if (knownMatches.contains(matchId)) return
         knownMatches.add(matchId)
 
         val title = if (isEnglish) "It's a Match! 🎉" else "Это Мэтч! 🎉"
-        val msg = if (isEnglish) "You both liked each other! Would you like to share your phone numbers?" else "Вы понравились друг другу! Хотите обменяться номерами телефонов?"
+        val msg = if (isEnglish) "You both liked each other! Would you like to share your phone number?" else "Вы понравились друг другу! Хотите поделиться своим номером телефона?"
         val posBtn = if (isEnglish) "Share Number" else "Поделиться номером"
         val negBtn = if (isEnglish) "Not Now" else "Не сейчас"
 
@@ -263,17 +284,6 @@ class MainActivity : AppCompatActivity() {
                 .setPositiveButton(posBtn) { _, _ ->
                     scope.launch {
                         repository.revealPhoneTo(matchId, otherUid)
-                        repository.listenForReveal(matchId, otherUid) { theirPhone ->
-                            val alertTitle = if (isEnglish) "Phone Number Shared" else "Номер получен"
-                            val alertMsg = if (isEnglish) "Their contact number: $theirPhone" else "Контактный номер: $theirPhone"
-                            runOnUiThread {
-                                AlertDialog.Builder(this@MainActivity)
-                                    .setTitle(alertTitle)
-                                    .setMessage(alertMsg)
-                                    .setPositiveButton("OK", null)
-                                    .show()
-                            }
-                        }
                     }
                 }
                 .setNegativeButton(negBtn, null)
