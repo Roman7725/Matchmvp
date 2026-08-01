@@ -20,10 +20,11 @@ class MatchRepository(private val eventCode: String) {
         }
     }
 
-    suspend fun registerParticipant(nickname: String, phone: String, anonymousId: String) {
+    suspend fun registerParticipant(nickname: String, phone: String, email: String, anonymousId: String) {
         val data = hashMapOf(
             "nickname" to nickname,
             "phone" to phone,
+            "email" to email,
             "anonymousId" to anonymousId,
             "eventCode" to eventCode,
             "timestamp" to FieldValue.serverTimestamp()
@@ -35,12 +36,6 @@ class MatchRepository(private val eventCode: String) {
         db.collection("events").document(eventCode)
             .collection("anonymous_map").document(anonymousId)
             .set(mapOf("uid" to currentUid)).await()
-    }
-
-    suspend fun getParticipantNickname(uid: String): String? {
-        val doc = db.collection("events").document(eventCode)
-            .collection("participants").document(uid).get().await()
-        return doc.getString("nickname")
     }
 
     suspend fun resolveUidForAnonymousId(anonymousId: String): String? {
@@ -97,29 +92,35 @@ class MatchRepository(private val eventCode: String) {
             }
     }
 
-    suspend fun revealPhoneTo(matchId: String, otherUid: String) {
+    suspend fun revealContactsTo(matchId: String, sharePhone: Boolean, shareEmail: Boolean) {
         val myUid = currentUid
         val myDoc = db.collection("events").document(eventCode)
             .collection("participants").document(myUid).get().await()
-        val myPhone = myDoc.getString("phone") ?: "No phone"
+        
+        val updateData = hashMapOf<String, Any>()
+        if (sharePhone) {
+            updateData["phone_$myUid"] = myDoc.getString("phone") ?: ""
+        }
+        if (shareEmail) {
+            updateData["email_$myUid"] = myDoc.getString("email") ?: ""
+        }
 
-        val updateData = hashMapOf<String, Any>(
-            "phone_$myUid" to myPhone
-        )
-
-        db.collection("events").document(eventCode)
-            .collection("matches").document(matchId)
-            .update(updateData).await()
+        if (updateData.isNotEmpty()) {
+            db.collection("events").document(eventCode)
+                .collection("matches").document(matchId)
+                .update(updateData).await()
+        }
     }
 
-    suspend fun listenForReveal(matchId: String, otherUid: String, onPhoneRevealed: (String) -> Unit) {
+    suspend fun listenForReveal(matchId: String, otherUid: String, onContactsRevealed: (phone: String?, email: String?) -> Unit) {
         db.collection("events").document(eventCode)
             .collection("matches").document(matchId)
             .addSnapshotListener { snapshot, e ->
                 if (e != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
                 val phone = snapshot.getString("phone_$otherUid")
-                if (phone != null) {
-                    onPhoneRevealed(phone)
+                val email = snapshot.getString("email_$otherUid")
+                if (phone != null || email != null) {
+                    onContactsRevealed(phone, email)
                 }
             }
     }
@@ -128,11 +129,5 @@ class MatchRepository(private val eventCode: String) {
         db.collection("events").document(eventCode)
             .collection("participants").document(currentUid)
             .update("hasBadge", visible).await()
-    }
-
-    suspend fun hasCommunityBadge(uid: String): Boolean {
-        val doc = db.collection("events").document(eventCode)
-            .collection("participants").document(uid).get().await()
-        return doc.getBoolean("hasBadge") == true
     }
 }
