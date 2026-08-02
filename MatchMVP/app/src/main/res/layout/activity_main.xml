@@ -18,7 +18,7 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="end"
-            android:layout_marginBottom="16dp">
+            android:layout_marginBottom="12dp">
 
             <Button
                 android:id="@+id/langBtn"
@@ -38,7 +38,14 @@
             android:textSize="28sp"
             android:textStyle="bold"
             android:textColor="#00E5FF"
-            android:layout_marginBottom="24dp"/>
+            android:layout_marginBottom="16dp"/>
+
+        <ImageView
+            android:id="@+id/myAvatarPreview"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_marginBottom="16dp"
+            android:contentDescription="Avatar"/>
 
         <EditText
             android:id="@+id/nicknameInput"
@@ -49,6 +56,46 @@
             android:textColor="#FFFFFF"
             android:inputType="textPersonName"
             android:layout_marginBottom="12dp"/>
+
+        <!-- STATUS TRAFFIC LIGHT SELECTOR -->
+        <TextView
+            android:id="@+id/statusLabelTv"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Твой статус:"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:layout_marginBottom="6dp"/>
+
+        <RadioGroup
+            android:id="@+id/statusRadioGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="16dp">
+
+            <RadioButton
+                android:id="@+id/radioGreen"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="🟢 Легко подойди"
+                android:textColor="#FFFFFF"
+                android:checked="true"/>
+
+            <RadioButton
+                android:id="@+id/radioYellow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="🟡 Лучше сначала напиши"
+                android:textColor="#FFFFFF"/>
+
+            <RadioButton
+                android:id="@+id/radioRed"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="🔴 Пока только наблюдаю"
+                android:textColor="#FFFFFF"/>
+        </RadioGroup>
 
         <EditText
             android:id="@+id/phoneInput"
@@ -68,7 +115,7 @@
             android:textColorHint="#888888"
             android:textColor="#FFFFFF"
             android:inputType="textEmailAddress"
-            android:layout_marginBottom="20dp"/>
+            android:layout_marginBottom="16dp"/>
 
         <CheckBox
             android:id="@+id/ageCheck"
@@ -76,16 +123,7 @@
             android:layout_height="wrap_content"
             android:text="Мне есть 18 лет / I am 18 or older"
             android:textColor="#FFFFFF"
-            android:layout_marginBottom="12dp"/>
-
-        <CheckBox
-            android:id="@+id/badgeCheck"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Показывать значок сообщества\nShow community badge"
-            android:textColor="#CCCCCC"
-            android:textSize="13sp"
-            android:layout_marginBottom="24dp"/>
+            android:layout_marginBottom="20dp"/>
 
         <Button
             android:id="@+id/joinBtn"
