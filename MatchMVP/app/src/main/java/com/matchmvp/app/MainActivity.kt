@@ -383,7 +383,7 @@ class MainActivity : AppCompatActivity() {
 
         if (blockedUsers.contains(anonId)) return
 
-        discoveredPeers[anonId] = NearbyPeer(anonId)
+        discoveredPeers[anonId] = NearbyPeer(anonId, peer.rssi) // Добавили peer.rssi
         peerNicknames[anonId] = nickname
         lastSeenTimes[anonId] = System.currentTimeMillis()
         peerRssiMap[anonId] = peer.rssi
