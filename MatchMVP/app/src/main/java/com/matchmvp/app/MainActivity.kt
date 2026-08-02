@@ -536,22 +536,23 @@ class MainActivity : AppCompatActivity() {
 
     private fun showReportDialog(targetUid: String) {
         val title = if (isEnglish) "Report User" else "Пожаловаться на пользователя"
-        val reasons = if (isEnglish) arrayOf("Inappropriate behavior", "Spam", "Fake profile") else arrayOf("Неадекватное поведение", "Спам", "Фейковый профиль")
+        val reasons = if (isEnglish) 
+            arrayOf("Inappropriate behavior", "Spam", "Fake profile") 
+        else 
+            arrayOf("Неадекватное поведение", "Спам", "Фейковый профиль")
 
         AlertDialog.Builder(this)
             .setTitle(title)
             .setItems(reasons) { _, which ->
-                val reason = reasons[which]
+                // Блокируем пользователя локально и удаляем из списка
                 blockedUsers.add(targetUid)
                 discoveredPeers.remove(targetUid)
                 scheduleUiUpdate()
-                scope.launch {
-                    repository.reportUser(targetUid, reason)
-                }
-                val msg = if (isEnglish) "User reported and blocked." else "Жалоба отправлена, пользователь заблокирован."
+                
+                val msg = if (isEnglish) "User blocked." else "Пользователь заблокирован."
                 Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(if (isEnglish) "Cancel" else "Отмена", null)
             .show()
     }
 
