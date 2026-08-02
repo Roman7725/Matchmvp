@@ -6,7 +6,7 @@ import android.os.Looper
 import androidx.appcompat.app.AppCompatActivity
 import java.util.concurrent.ConcurrentHashMap
 
-data class NearbyPeer(val anonymousId: String)
+
 
 class MainActivity : AppCompatActivity() {
 
