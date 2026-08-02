@@ -7,6 +7,7 @@ import android.bluetooth.BluetoothManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Vibrator
@@ -37,6 +38,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var advertiser: BleAdvertiser
     private lateinit var scanner: BleScanner
     private lateinit var adapter: PeerAdapter
+    private lateinit var prefs: SharedPreferences
 
     private val scope = MainScope()
     private val discoveredPeers = mutableMapOf<String, NearbyPeer>()
@@ -80,6 +82,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         repository = MatchRepository(EVENT_CODE)
+        prefs = getSharedPreferences("match_history_prefs", Context.MODE_PRIVATE)
 
         joinScreen = findViewById(R.id.joinScreen)
         roomScreen = findViewById(R.id.roomScreen)
@@ -97,6 +100,9 @@ class MainActivity : AppCompatActivity() {
 
         val leaveBtnId = resources.getIdentifier("leaveBtn", "id", packageName)
         val leaveBtn: Button? = if (leaveBtnId != 0) findViewById(leaveBtnId) else null
+        
+        val historyBtnId = resources.getIdentifier("historyBtn", "id", packageName)
+        val historyBtn: Button? = if (historyBtnId != 0) findViewById(historyBtnId) else null
 
         fun updateUiLanguage() {
             if (isEnglish) {
@@ -109,6 +115,7 @@ class MainActivity : AppCompatActivity() {
                 roomTitleTv.text = "Nearby"
                 radarStatusTv.text = "Scanning for nearby participants..."
                 leaveBtn?.text = "Leave"
+                historyBtn?.text = "History"
             } else {
                 nicknameInput.hint = "Имя"
                 phoneInput.hint = "Телефон"
@@ -119,6 +126,7 @@ class MainActivity : AppCompatActivity() {
                 roomTitleTv.text = "Кто рядом"
                 radarStatusTv.text = "Поиск участников рядом..."
                 leaveBtn?.text = "Выйти"
+                historyBtn?.text = "История"
             }
         }
 
@@ -127,7 +135,6 @@ class MainActivity : AppCompatActivity() {
             updateUiLanguage()
         }
 
-        // Клик по карточке пользователя -> Нажатие сердечка + возможность заблокировать
         adapter = PeerAdapter { peer ->
             scope.launch {
                 val realUid = repository.resolveUidForAnonymousId(peer.uid) ?: return@launch
@@ -147,7 +154,6 @@ class MainActivity : AppCompatActivity() {
             val phone = phoneInput.text.toString().trim()
             val email = emailInput.text.toString().trim()
 
-            // Валидация номера (только цифры и плюс, длина 7-15)
             val cleanPhone = phone.replace(Regex("[^0-9]"), "")
             if (cleanPhone.length < 7 || cleanPhone.length > 15) {
                 val msg = if (isEnglish) "Please enter a valid phone number (7 to 15 digits)." else "Введите корректный номер телефона (от 7 до 15 цифр)."
@@ -155,7 +161,6 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            // Валидация Email если введен
             if (email.isNotEmpty() && !Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
                 val msg = if (isEnglish) "Please enter a valid email address." else "Введите корректный адрес email."
                 AlertDialog.Builder(this).setMessage(msg).setPositiveButton("OK", null).show()
@@ -184,7 +189,54 @@ class MainActivity : AppCompatActivity() {
             joinScreen.visibility = LinearLayout.VISIBLE
         }
 
+        historyBtn?.setOnClickListener {
+            showHistoryDialog()
+        }
+
         startCleanupTask()
+    }
+
+    private fun saveContactToHistory(contactData: String) {
+        val currentHistory = prefs.getStringSet("saved_contacts", mutableSetOf()) ?: mutableSetOf()
+        val updatedHistory = HashSet(currentHistory)
+        updatedHistory.add(contactData)
+        prefs.edit().putStringSet("saved_contacts", updatedHistory).apply()
+    }
+
+    private fun showHistoryDialog() {
+        val contactsSet = prefs.getStringSet("saved_contacts", emptySet()) ?: emptySet()
+        val title = if (isEnglish) "Saved Contacts" else "История контактов"
+        val emptyMsg = if (isEnglish) "No saved contacts yet." else "История пока пуста."
+
+        if (contactsSet.isEmpty()) {
+            AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(emptyMsg)
+                .setPositiveButton("OK", null)
+                .show()
+            return
+        }
+
+        val contactsList = contactsSet.toList()
+        val items = contactsList.toTypedArray()
+
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(items) { _, which ->
+                val selected = items[which]
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("Contact Info", selected)
+                clipboard.setPrimaryClip(clip)
+                val msg = if (isEnglish) "Copied to clipboard!" else "Скопировано в буфер обмена!"
+                Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+            }
+            .setPositiveButton("OK", null)
+            .setNeutralButton(if (isEnglish) "Clear History" else "Очистить") { _, _ ->
+                prefs.edit().remove("saved_contacts").apply()
+                val msg = if (isEnglish) "History cleared." else "История очищена."
+                Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+            }
+            .show()
     }
 
     private fun ensurePermissionsThenStart() {
@@ -275,7 +327,6 @@ class MainActivity : AppCompatActivity() {
         scheduleUiUpdate()
     }
 
-    // Автоматическое удаление пропавших устройств через 45 секунд
     private fun startCleanupTask() {
         mainHandler.postDelayed(object : Runnable {
             override fun run() {
@@ -319,7 +370,7 @@ class MainActivity : AppCompatActivity() {
                 v.vibrate(400)
             }
         } catch (e: Exception) {
-            // Игнорируем если вибро не поддерживается
+            // Игнорируем
         }
     }
 
@@ -335,14 +386,17 @@ class MainActivity : AppCompatActivity() {
                     shownPhones.add(key)
 
                     val contactText = buildString {
-                        if (!phone.isNullOrEmpty()) append("Phone: $phone\n")
+                        if (!phone.isNullOrEmpty()) append("Тел: $phone ")
                         if (!email.isNullOrEmpty()) append("Email: $email")
                     }.trim()
 
                     if (contactText.isNotEmpty()) {
+                        // Автоматическое сохранение в историю
+                        saveContactToHistory(contactText)
+
                         val alertTitle = if (isEnglish) "Contact Received! 🎉" else "Контакт получен! 🎉"
                         val copyLabel = if (isEnglish) "Copy" else "Скопировать"
-                        val toastMsg = if (isEnglish) "Copied to clipboard" else "Скопировано в буфер обмена"
+                        val toastMsg = if (isEnglish) "Copied to clipboard & saved to History!" else "Скопировано в буфер и сохранено в Историю!"
 
                         runOnUiThread {
                             AlertDialog.Builder(this@MainActivity)
