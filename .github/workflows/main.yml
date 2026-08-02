@@ -28,8 +28,9 @@ jobs:
     - name: Build with Gradle
       working-directory: ./MatchMVP
       env:
-        GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2048m"
-      run: ./gradlew assembleDebug --stacktrace
+        GRADLE_OPTS: ""
+        JAVA_OPTS: ""
+      run: ./gradlew assembleDebug -Dorg.gradle.jvmargs="-Xmx2048m" --stacktrace
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
