@@ -13,17 +13,25 @@ import android.os.Bundle
 import android.os.Vibrator
 import android.os.VibrationEffect
 import android.os.Build
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.Patterns
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import coil.ImageLoader
+import coil.decode.SvgDecoder
+import coil.load
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -39,6 +47,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var scanner: BleScanner
     private lateinit var adapter: PeerAdapter
     private lateinit var prefs: SharedPreferences
+    private lateinit var imageLoader: ImageLoader
 
     private val scope = MainScope()
     private val discoveredPeers = mutableMapOf<String, NearbyPeer>()
@@ -52,7 +61,7 @@ class MainActivity : AppCompatActivity() {
     private var myNickname: String = ""
     private var myPhoneNumber: String = ""
     private var myEmail: String = ""
-    private var myBadgeEnabled: Boolean = false
+    private var myStatusEmoji: String = "🟢" // 🟢, 🟡, 🔴
     private var matchesListener: ListenerRegistration? = null
 
     private var isEnglish: Boolean = false
@@ -60,6 +69,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var joinScreen: LinearLayout
     private lateinit var roomScreen: LinearLayout
     private lateinit var radarStatusTv: TextView
+    private lateinit var myAvatarPreview: ImageView
 
     private val requestPermissionLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
@@ -81,21 +91,30 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        imageLoader = ImageLoader.Builder(this)
+            .components { add(SvgDecoder.Factory()) }
+            .build()
+
         repository = MatchRepository(EVENT_CODE)
         prefs = getSharedPreferences("match_history_prefs", Context.MODE_PRIVATE)
 
         joinScreen = findViewById(R.id.joinScreen)
         roomScreen = findViewById(R.id.roomScreen)
         radarStatusTv = findViewById(R.id.radarStatusTv)
+        myAvatarPreview = findViewById(R.id.myAvatarPreview)
         
         val nicknameInput = findViewById<EditText>(R.id.nicknameInput)
         val phoneInput = findViewById<EditText>(R.id.phoneInput)
         val emailInput = findViewById<EditText>(R.id.emailInput)
         val ageCheck = findViewById<CheckBox>(R.id.ageCheck)
-        val badgeCheck = findViewById<CheckBox>(R.id.badgeCheck)
         val joinBtn = findViewById<Button>(R.id.joinBtn)
         val langBtn = findViewById<Button>(R.id.langBtn)
         val roomTitleTv = findViewById<TextView>(R.id.roomTitleTv)
+        val statusLabelTv = findViewById<TextView>(R.id.statusLabelTv)
+        val statusRadioGroup = findViewById<RadioGroup>(R.id.statusRadioGroup)
+        val radioGreen = findViewById<RadioButton>(R.id.radioGreen)
+        val radioYellow = findViewById<RadioButton>(R.id.radioYellow)
+        val radioRed = findViewById<RadioButton>(R.id.radioRed)
         val recyclerView = findViewById<RecyclerView>(R.id.peersRecyclerView)
 
         val leaveBtnId = resources.getIdentifier("leaveBtn", "id", packageName)
@@ -104,13 +123,33 @@ class MainActivity : AppCompatActivity() {
         val historyBtnId = resources.getIdentifier("historyBtn", "id", packageName)
         val historyBtn: Button? = if (historyBtnId != 0) findViewById(historyBtnId) else null
 
+        // Обновление аватарки DiceBear на лету при вводе имени
+        fun updateAvatarPreview(name: String) {
+            val seed = if (name.isEmpty()) "User" else name
+            val avatarUrl = "https://api.dicebear.com/7.x/bottts/svg?seed=$seed"
+            myAvatarPreview.load(avatarUrl, imageLoader)
+        }
+
+        updateAvatarPreview("")
+
+        nicknameInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                updateAvatarPreview(s.toString().trim())
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
         fun updateUiLanguage() {
             if (isEnglish) {
                 nicknameInput.hint = "Nickname"
                 phoneInput.hint = "Phone number"
                 emailInput.hint = "Email (optional)"
                 ageCheck.text = "I am 18 or older"
-                badgeCheck.text = "Show community badge\n(visible only to those who also turned it on)"
+                statusLabelTv.text = "Your status:"
+                radioGreen.text = "🟢 Easy to approach"
+                radioYellow.text = "🟡 Better text first"
+                radioRed.text = "🔴 Just watching"
                 joinBtn.text = "JOIN BROADCAST"
                 roomTitleTv.text = "Nearby"
                 radarStatusTv.text = "Scanning for nearby participants..."
@@ -121,7 +160,10 @@ class MainActivity : AppCompatActivity() {
                 phoneInput.hint = "Телефон"
                 emailInput.hint = "Email (необязательно)"
                 ageCheck.text = "Мне есть 18 лет"
-                badgeCheck.text = "Показывать значок сообщества\n(виден только тем, у кого он тоже включён)"
+                statusLabelTv.text = "Твой статус:"
+                radioGreen.text = "🟢 Легко подойди"
+                radioYellow.text = "🟡 Лучше сначала напиши"
+                radioRed.text = "🔴 Пока только наблюдаю"
                 joinBtn.text = "ВОЙТИ В ЭФИР"
                 roomTitleTv.text = "Кто рядом"
                 radarStatusTv.text = "Поиск участников рядом..."
@@ -173,10 +215,15 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
+            myStatusEmoji = when (statusRadioGroup.checkedRadioButtonId) {
+                R.id.radioYellow -> "🟡"
+                R.id.radioRed -> "🔴"
+                else -> "🟢"
+            }
+
             myNickname = nickname
             myPhoneNumber = phone
             myEmail = email
-            myBadgeEnabled = badgeCheck.isChecked
             
             joinScreen.visibility = LinearLayout.GONE
             roomScreen.visibility = LinearLayout.VISIBLE
@@ -274,7 +321,6 @@ class MainActivity : AppCompatActivity() {
             try {
                 repository.signInAnonymously()
                 repository.registerParticipant(myNickname, myPhoneNumber, myEmail, myAnonymousId)
-                repository.setCommunityVisible(myBadgeEnabled)
                 matchesListener = repository.listenForMatches { matchId, otherUid -> onMatchFound(matchId, otherUid) }
             } catch (e: Exception) {
                 val title = if (isEnglish) "Connection Error" else "Ошибка подключения"
@@ -289,7 +335,8 @@ class MainActivity : AppCompatActivity() {
         advertiser = BleAdvertiser(btAdapter)
         scanner = BleScanner(btAdapter) { peer -> onPeerDiscovered(peer) }
 
-        val payload = "$myNickname:$myAnonymousId"
+        // Передаем статус светофора вместе с именем
+        val payload = "$myStatusEmoji $myNickname:$myAnonymousId"
         advertiser.startAdvertising(payload)
         scanner.startScanning()
     }
@@ -302,14 +349,12 @@ class MainActivity : AppCompatActivity() {
         discoveredPeers.clear()
         lastSeenTimes.clear()
         peerNicknames.clear()
-        peerBadges.clear()
         knownMatches.clear()
         shownPhones.clear()
         adapter.submitList(emptyList())
     }
 
     private val peerNicknames = mutableMapOf<String, String>()
-    private val peerBadges = mutableMapOf<String, Boolean>()
     private var uiUpdateScheduled = false
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
@@ -354,7 +399,7 @@ class MainActivity : AppCompatActivity() {
                 UiPeer(
                     uid = anonymousId,
                     avatarLabel = peerNicknames[anonymousId] ?: defaultName,
-                    hasBadge = peerBadges[anonymousId] == true
+                    hasBadge = false
                 )
             }
             adapter.submitList(uiList)
@@ -370,7 +415,7 @@ class MainActivity : AppCompatActivity() {
                 v.vibrate(400)
             }
         } catch (e: Exception) {
-            // Игнорируем
+            // Ignore
         }
     }
 
@@ -391,7 +436,6 @@ class MainActivity : AppCompatActivity() {
                     }.trim()
 
                     if (contactText.isNotEmpty()) {
-                        // Автоматическое сохранение в историю
                         saveContactToHistory(contactText)
 
                         val alertTitle = if (isEnglish) "Contact Received! 🎉" else "Контакт получен! 🎉"
