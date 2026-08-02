@@ -56,12 +56,13 @@ class MainActivity : AppCompatActivity() {
     
     private val knownMatches = mutableSetOf<String>()
     private val shownPhones = mutableSetOf<String>()
+    private val processedMatches = mutableSetOf<String>() // Мэтчи, по которым решение уже принято
     
     private var myAnonymousId: String = UUID.randomUUID().toString().take(8)
     private var myNickname: String = ""
     private var myPhoneNumber: String = ""
     private var myEmail: String = ""
-    private var myStatusEmoji: String = "🟢" // 🟢, 🟡, 🔴
+    private var myStatusEmoji: String = "🟢"
     private var matchesListener: ListenerRegistration? = null
 
     private var isEnglish: Boolean = false
@@ -91,12 +92,18 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        imageLoader = ImageLoader.Builder(this)
-            .components { add(SvgDecoder.Factory()) }
-            .build()
-
         repository = MatchRepository(EVENT_CODE)
         prefs = getSharedPreferences("match_history_prefs", Context.MODE_PRIVATE)
+
+        // Загружаем список уже обработанных мэтчей, чтобы не показывать диалоги повторно
+        val savedProcessed = prefs.getStringSet("processed_matches", emptySet()) ?: emptySet()
+        processedMatches.addAll(savedProcessed)
+
+        imageLoader = ImageLoader.Builder(this)
+            .components {
+                add(SvgDecoder.Factory())
+            }
+            .build()
 
         joinScreen = findViewById(R.id.joinScreen)
         roomScreen = findViewById(R.id.roomScreen)
@@ -123,10 +130,9 @@ class MainActivity : AppCompatActivity() {
         val historyBtnId = resources.getIdentifier("historyBtn", "id", packageName)
         val historyBtn: Button? = if (historyBtnId != 0) findViewById(historyBtnId) else null
 
-        // Обновление аватарки DiceBear на лету при вводе имени
-        fun updateAvatarPreview(name: String) {
-            val seed = if (name.isEmpty()) "User" else name
-            val avatarUrl = "https://api.dicebear.com/7.x/bottts/svg?seed=$seed"
+        fun updateAvatarPreview(seed: String) {
+            val avatarSeed = if (seed.trim().isEmpty()) "default" else seed.trim()
+            val avatarUrl = "https://api.dicebear.com/7.x/bottts/svg?seed=$avatarSeed"
             myAvatarPreview.load(avatarUrl, imageLoader)
         }
 
@@ -243,6 +249,11 @@ class MainActivity : AppCompatActivity() {
         startCleanupTask()
     }
 
+    private fun markMatchAsProcessed(matchId: String) {
+        processedMatches.add(matchId)
+        prefs.edit().putStringSet("processed_matches", HashSet(processedMatches)).apply()
+    }
+
     private fun saveContactToHistory(contactData: String) {
         val currentHistory = prefs.getStringSet("saved_contacts", mutableSetOf()) ?: mutableSetOf()
         val updatedHistory = HashSet(currentHistory)
@@ -335,7 +346,6 @@ class MainActivity : AppCompatActivity() {
         advertiser = BleAdvertiser(btAdapter)
         scanner = BleScanner(btAdapter) { peer -> onPeerDiscovered(peer) }
 
-        // Передаем статус светофора вместе с именем
         val payload = "$myStatusEmoji $myNickname:$myAnonymousId"
         advertiser.startAdvertising(payload)
         scanner.startScanning()
@@ -422,8 +432,7 @@ class MainActivity : AppCompatActivity() {
     private fun onMatchFound(matchId: String, otherUid: String) {
         if (blockedUsers.contains(otherUid)) return
 
-        triggerVibration()
-
+        // Слушаем раскрытие контактов в любом случае (если оба согласились)
         scope.launch {
             repository.listenForReveal(matchId, otherUid) { phone, email ->
                 val key = "$matchId:${phone.orEmpty()}:${email.orEmpty()}"
@@ -460,8 +469,11 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        if (knownMatches.contains(matchId)) return
+        // Если решение по этому мэтчу у пользователя уже было принято (или окно открывалось) — пропускаем показ диалога
+        if (processedMatches.contains(matchId) || knownMatches.contains(matchId)) return
         knownMatches.add(matchId)
+
+        triggerVibration()
 
         val title = if (isEnglish) "It's a Match! 🎉" else "Это Мэтч! 🎉"
         val options = if (isEnglish) arrayOf("Phone number", "Email") else arrayOf("Номер телефона", "Email")
@@ -474,6 +486,7 @@ class MainActivity : AppCompatActivity() {
                     checkedItems[which] = isChecked
                 }
                 .setPositiveButton(if (isEnglish) "Share" else "Поделиться") { _, _ ->
+                    markMatchAsProcessed(matchId)
                     val sharePhone = checkedItems[0]
                     val shareEmail = checkedItems[1]
                     scope.launch {
@@ -481,9 +494,15 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 .setNeutralButton(if (isEnglish) "Report / Block" else "Пожаловаться") { _, _ ->
+                    markMatchAsProcessed(matchId)
                     showReportDialog(otherUid)
                 }
-                .setNegativeButton(if (isEnglish) "Not Now" else "Не сейчас", null)
+                .setNegativeButton(if (isEnglish) "Not Now" else "Не сейчас") { _, _ ->
+                    markMatchAsProcessed(matchId)
+                }
+                .setOnCancelListener {
+                    markMatchAsProcessed(matchId)
+                }
                 .show()
         }
     }
