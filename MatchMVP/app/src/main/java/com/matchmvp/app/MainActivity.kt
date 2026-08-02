@@ -52,6 +52,7 @@ class MainActivity : AppCompatActivity() {
     private val scope = MainScope()
     private val discoveredPeers = mutableMapOf<String, NearbyPeer>()
     private val lastSeenTimes = mutableMapOf<String, Long>()
+    private val peerRssiMap = mutableMapOf<String, Int>() // Храним уровень сигнала Bluetooth
     private val blockedUsers = mutableSetOf<String>()
     
     private val knownMatches = mutableSetOf<String>()
@@ -95,7 +96,6 @@ class MainActivity : AppCompatActivity() {
         repository = MatchRepository(EVENT_CODE)
         prefs = getSharedPreferences("match_history_prefs", Context.MODE_PRIVATE)
 
-        // Загружаем список уже обработанных мэтчей и уже показанных алертов с контактами
         val savedProcessed = prefs.getStringSet("processed_matches", emptySet()) ?: emptySet()
         processedMatches.addAll(savedProcessed)
 
@@ -366,6 +366,7 @@ class MainActivity : AppCompatActivity() {
         matchesListener = null
         discoveredPeers.clear()
         lastSeenTimes.clear()
+        peerRssiMap.clear()
         peerNicknames.clear()
         knownMatches.clear()
         adapter.submitList(emptyList())
@@ -385,6 +386,7 @@ class MainActivity : AppCompatActivity() {
         discoveredPeers[anonId] = NearbyPeer(anonId)
         peerNicknames[anonId] = nickname
         lastSeenTimes[anonId] = System.currentTimeMillis()
+        peerRssiMap[anonId] = peer.rssi
 
         scheduleUiUpdate()
     }
@@ -397,6 +399,7 @@ class MainActivity : AppCompatActivity() {
                 for (id in expired) {
                     discoveredPeers.remove(id)
                     lastSeenTimes.remove(id)
+                    peerRssiMap.remove(id)
                 }
                 if (expired.isNotEmpty()) {
                     scheduleUiUpdate()
@@ -406,6 +409,15 @@ class MainActivity : AppCompatActivity() {
         }, 10000)
     }
 
+    // Расчёт категории расстояния по сигналу Bluetooth RSSI
+    private fun getDistanceText(rssi: Int): String {
+        return when {
+            rssi >= -65 -> if (isEnglish) "Рядом (~2м)" else "Рядом (~2м)"
+            rssi >= -80 -> if (isEnglish) "Близко (~5м)" else "Близко (~5м)"
+            else -> if (isEnglish) "Далеко (>7м)" else "Далеко (>7м)"
+        }
+    }
+
     private fun scheduleUiUpdate() {
         if (uiUpdateScheduled) return
         uiUpdateScheduled = true
@@ -413,9 +425,12 @@ class MainActivity : AppCompatActivity() {
             uiUpdateScheduled = false
             val defaultName = if (isEnglish) "Nearby User" else "Участник рядом"
             val uiList = discoveredPeers.keys.map { anonymousId ->
+                val name = peerNicknames[anonymousId] ?: defaultName
+                val rssi = peerRssiMap[anonymousId] ?: -99
+                val dist = getDistanceText(rssi)
                 UiPeer(
                     uid = anonymousId,
-                    avatarLabel = peerNicknames[anonymousId] ?: defaultName,
+                    avatarLabel = "$name • $dist",
                     hasBadge = false
                 )
             }
@@ -439,35 +454,38 @@ class MainActivity : AppCompatActivity() {
     private fun onMatchFound(matchId: String, otherUid: String) {
         if (blockedUsers.contains(otherUid)) return
 
-        // Слушаем раскрытие контактов
         scope.launch {
             repository.listenForReveal(matchId, otherUid) { phone, email ->
                 val key = "$matchId:${phone.orEmpty()}:${email.orEmpty()}"
                 
-                // Проверяем, показывалось ли всплывающее окно для этого контакта РАНЕЕ
                 if (!shownPhones.contains(key)) {
-                    markPhoneAsShown(key) // Фиксируем в памяти устройства НАВСЕГДА
+                    markPhoneAsShown(key)
 
-                    val contactText = buildString {
+                    val partnerName = peerNicknames[otherUid] ?: if (isEnglish) "User" else "Участник"
+                    
+                    val detailsText = buildString {
                         if (!phone.isNullOrEmpty()) append("Тел: $phone ")
                         if (!email.isNullOrEmpty()) append("Email: $email")
                     }.trim()
 
-                    if (contactText.isNotEmpty()) {
-                        saveContactToHistory(contactText)
+                    if (detailsText.isNotEmpty()) {
+                        // Формируем красивую запись с никнеймом для Истории
+                        val historyEntry = "$partnerName ➔ $detailsText"
+                        saveContactToHistory(historyEntry)
                         triggerVibration()
 
                         val alertTitle = if (isEnglish) "Contact Received! 🎉" else "Контакт получен! 🎉"
+                        val alertMsg = "$partnerName:\n$detailsText"
                         val copyLabel = if (isEnglish) "Copy" else "Скопировать"
                         val toastMsg = if (isEnglish) "Copied to clipboard & saved to History!" else "Скопировано в буфер и сохранено в Историю!"
 
                         runOnUiThread {
                             AlertDialog.Builder(this@MainActivity)
                                 .setTitle(alertTitle)
-                                .setMessage(contactText)
+                                .setMessage(alertMsg)
                                 .setPositiveButton(copyLabel) { _, _ ->
                                     val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    val clip = ClipData.newPlainText("Contact Info", contactText)
+                                    val clip = ClipData.newPlainText("Contact Info", detailsText)
                                     clipboard.setPrimaryClip(clip)
                                     Toast.makeText(this@MainActivity, toastMsg, Toast.LENGTH_SHORT).show()
                                 }
@@ -484,7 +502,8 @@ class MainActivity : AppCompatActivity() {
 
         triggerVibration()
 
-        val title = if (isEnglish) "It's a Match! 🎉" else "Это Мэтч! 🎉"
+        val partnerName = peerNicknames[otherUid] ?: if (isEnglish) "User" else "Участник"
+        val title = if (isEnglish) "Match with $partnerName! 🎉" else "Мэтч с $partnerName! 🎉"
         val options = if (isEnglish) arrayOf("Phone number", "Email") else arrayOf("Номер телефона", "Email")
         val checkedItems = booleanArrayOf(true, myEmail.isNotEmpty())
 
