@@ -52,7 +52,7 @@ class MainActivity : AppCompatActivity() {
     private val scope = MainScope()
     private val discoveredPeers = mutableMapOf<String, NearbyPeer>()
     private val lastSeenTimes = mutableMapOf<String, Long>()
-    private val peerRssiMap = mutableMapOf<String, Int>() // Храним уровень сигнала Bluetooth
+    private val peerRssiMap = mutableMapOf<String, Int>()
     private val blockedUsers = mutableSetOf<String>()
     
     private val knownMatches = mutableSetOf<String>()
@@ -383,7 +383,8 @@ class MainActivity : AppCompatActivity() {
 
         if (blockedUsers.contains(anonId)) return
 
-        discoveredPeers[anonId] = NearbyPeer(anonId, peer.rssi) // Добавили peer.rssi
+        // Передаём 2 параметра (anonId и peer.rssi), чтобы предотвратить ошибку сборки
+        discoveredPeers[anonId] = NearbyPeer(anonId, peer.rssi)
         peerNicknames[anonId] = nickname
         lastSeenTimes[anonId] = System.currentTimeMillis()
         peerRssiMap[anonId] = peer.rssi
@@ -409,12 +410,11 @@ class MainActivity : AppCompatActivity() {
         }, 10000)
     }
 
-    // Расчёт категории расстояния по сигналу Bluetooth RSSI
     private fun getDistanceText(rssi: Int): String {
         return when {
-            rssi >= -65 -> if (isEnglish) "Рядом (~2м)" else "Рядом (~2м)"
-            rssi >= -80 -> if (isEnglish) "Близко (~5м)" else "Близко (~5м)"
-            else -> if (isEnglish) "Далеко (>7м)" else "Далеко (>7м)"
+            rssi >= -65 -> "Рядом (~2м)"
+            rssi >= -80 -> "Близко (~5м)"
+            else -> "Далеко (>7м)"
         }
     }
 
@@ -469,7 +469,6 @@ class MainActivity : AppCompatActivity() {
                     }.trim()
 
                     if (detailsText.isNotEmpty()) {
-                        // Формируем красивую запись с никнеймом для Истории
                         val historyEntry = "$partnerName ➔ $detailsText"
                         saveContactToHistory(historyEntry)
                         triggerVibration()
