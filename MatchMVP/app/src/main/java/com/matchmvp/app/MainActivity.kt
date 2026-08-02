@@ -56,8 +56,8 @@ class MainActivity : AppCompatActivity() {
     
     private val knownMatches = mutableSetOf<String>()
     private val shownPhones = mutableSetOf<String>()
-    private val processedMatches = mutableSetOf<String>() // Мэтчи, по которым решение уже принято
-    
+    private val processedMatches = mutableSetOf<String>()
+
     private var myAnonymousId: String = UUID.randomUUID().toString().take(8)
     private var myNickname: String = ""
     private var myPhoneNumber: String = ""
@@ -95,9 +95,12 @@ class MainActivity : AppCompatActivity() {
         repository = MatchRepository(EVENT_CODE)
         prefs = getSharedPreferences("match_history_prefs", Context.MODE_PRIVATE)
 
-        // Загружаем список уже обработанных мэтчей, чтобы не показывать диалоги повторно
+        // Загружаем список уже обработанных мэтчей и уже показанных алертов с контактами
         val savedProcessed = prefs.getStringSet("processed_matches", emptySet()) ?: emptySet()
         processedMatches.addAll(savedProcessed)
+
+        val savedShownPhones = prefs.getStringSet("shown_phones", emptySet()) ?: emptySet()
+        shownPhones.addAll(savedShownPhones)
 
         imageLoader = ImageLoader.Builder(this)
             .components {
@@ -254,6 +257,11 @@ class MainActivity : AppCompatActivity() {
         prefs.edit().putStringSet("processed_matches", HashSet(processedMatches)).apply()
     }
 
+    private fun markPhoneAsShown(key: String) {
+        shownPhones.add(key)
+        prefs.edit().putStringSet("shown_phones", HashSet(shownPhones)).apply()
+    }
+
     private fun saveContactToHistory(contactData: String) {
         val currentHistory = prefs.getStringSet("saved_contacts", mutableSetOf()) ?: mutableSetOf()
         val updatedHistory = HashSet(currentHistory)
@@ -360,7 +368,6 @@ class MainActivity : AppCompatActivity() {
         lastSeenTimes.clear()
         peerNicknames.clear()
         knownMatches.clear()
-        shownPhones.clear()
         adapter.submitList(emptyList())
     }
 
@@ -432,12 +439,14 @@ class MainActivity : AppCompatActivity() {
     private fun onMatchFound(matchId: String, otherUid: String) {
         if (blockedUsers.contains(otherUid)) return
 
-        // Слушаем раскрытие контактов в любом случае (если оба согласились)
+        // Слушаем раскрытие контактов
         scope.launch {
             repository.listenForReveal(matchId, otherUid) { phone, email ->
                 val key = "$matchId:${phone.orEmpty()}:${email.orEmpty()}"
+                
+                // Проверяем, показывалось ли всплывающее окно для этого контакта РАНЕЕ
                 if (!shownPhones.contains(key)) {
-                    shownPhones.add(key)
+                    markPhoneAsShown(key) // Фиксируем в памяти устройства НАВСЕГДА
 
                     val contactText = buildString {
                         if (!phone.isNullOrEmpty()) append("Тел: $phone ")
@@ -446,6 +455,7 @@ class MainActivity : AppCompatActivity() {
 
                     if (contactText.isNotEmpty()) {
                         saveContactToHistory(contactText)
+                        triggerVibration()
 
                         val alertTitle = if (isEnglish) "Contact Received! 🎉" else "Контакт получен! 🎉"
                         val copyLabel = if (isEnglish) "Copy" else "Скопировать"
@@ -469,7 +479,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Если решение по этому мэтчу у пользователя уже было принято (или окно открывалось) — пропускаем показ диалога
         if (processedMatches.contains(matchId) || knownMatches.contains(matchId)) return
         knownMatches.add(matchId)
 
