@@ -1,6 +1,8 @@
 package com.matchmvp.app
 
-import android.content.res.Configuration
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -11,7 +13,10 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import java.util.Locale
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.core.os.LocaleListCompat
 import java.util.concurrent.ConcurrentHashMap
 
 class MainActivity : AppCompatActivity() {
@@ -23,6 +28,7 @@ class MainActivity : AppCompatActivity() {
     private val peerRssiMap = ConcurrentHashMap<String, Int>()
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val PERMISSION_REQUEST_CODE = 101
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,7 +48,7 @@ class MainActivity : AppCompatActivity() {
         val leaveBtn = findViewById<Button>(R.id.leaveBtn)
         val langBtn = findViewById<Button>(R.id.langBtn)
 
-        // 1. ЛОГИКА КНОПКИ "ВОЙТИ В ЭФИР"
+        // 1. КНОПКА "ВОЙТИ В ЭФИР" + ЗАПРОС РАЗРЕШЕНИЙ
         joinBtn?.setOnClickListener {
             val nickname = nicknameInput?.text?.toString()?.trim().orEmpty()
 
@@ -56,10 +62,12 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            // Успешный вход -> переключаем экран входа на экран комнаты
-            joinScreen?.visibility = View.GONE
-            roomScreen?.visibility = View.VISIBLE
-            Toast.makeText(this, "Вы вошли в эфир!", Toast.LENGTH_SHORT).show()
+            // Проверяем и запрашиваем разрешения Bluetooth и Геолокации
+            if (!hasRequiredPermissions()) {
+                requestRequiredPermissions()
+            } else {
+                enterRoom(joinScreen, roomScreen)
+            }
         }
 
         // Кнопка "Выйти / Leave"
@@ -68,28 +76,67 @@ class MainActivity : AppCompatActivity() {
             joinScreen?.visibility = View.VISIBLE
         }
 
-        // 2. ЛОГИКА КНОПКИ ПЕРЕКЛЮЧЕНИЯ ЯЗЫКА (EN / RU)
+        // 2. ПЕРЕКЛЮЧЕНИЕ ЯЗЫКА (RU <-> EN)
         langBtn?.setOnClickListener {
-            val currentLang = resources.configuration.locales.get(0).language
+            val currentLocales = AppCompatDelegate.getApplicationLocales()
+            val currentLang = if (!currentLocales.isEmpty) currentLocales.get(0)?.language else "ru"
+
             val newLang = if (currentLang == "ru") "en" else "ru"
-            setAppLanguage(newLang)
+            val appLocales = LocaleListCompat.forLanguageTags(newLang)
+            
+            // Сохраняет выбранный язык и автоматические пересоздает UI
+            AppCompatDelegate.setApplicationLocales(appLocales)
         }
     }
 
-    private fun setAppLanguage(languageCode: String) {
-        val locale = Locale(languageCode)
-        Locale.setDefault(locale)
+    private fun enterRoom(joinScreen: LinearLayout?, roomScreen: LinearLayout?) {
+        joinScreen?.visibility = View.GONE
+        roomScreen?.visibility = View.VISIBLE
+        Toast.makeText(this, "Вы вошли в эфир!", Toast.LENGTH_SHORT).show()
+    }
 
-        val config = Configuration(resources.configuration)
-        config.setLocale(locale)
+    // ==========================================
+    // ПРОВЕРКА И ЗАПРОС РАЗРЕШЕНИЙ (BLE / GPS)
+    // ==========================================
+    private fun hasRequiredPermissions(): Boolean {
+        val permissions = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION)
 
-        baseContext.resources.updateConfiguration(
-            config,
-            baseContext.resources.displayMetrics
-        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            permissions.add(Manifest.permission.BLUETOOTH_SCAN)
+            permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+        }
 
-        // Перезапускаем экран для моментального обновления языка UI
-        recreate()
+        return permissions.all {
+            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    private fun requestRequiredPermissions() {
+        val permissions = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            permissions.add(Manifest.permission.BLUETOOTH_SCAN)
+            permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+        }
+
+        ActivityCompat.requestPermissions(this, permissions.toTypedArray(), PERMISSION_REQUEST_CODE)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
+                val joinScreen = findViewById<LinearLayout>(R.id.joinScreen)
+                val roomScreen = findViewById<LinearLayout>(R.id.roomScreen)
+                enterRoom(joinScreen, roomScreen)
+            } else {
+                Toast.makeText(this, "Для поиска устройств необходим доступ к Bluetooth и GPS!", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     private fun onPeerDiscovered(peer: NearbyPeer) {
