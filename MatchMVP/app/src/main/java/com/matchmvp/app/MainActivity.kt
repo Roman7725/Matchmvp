@@ -15,7 +15,6 @@ import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.RadioButton
-import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -31,16 +30,20 @@ class MainActivity : AppCompatActivity() {
     private val blockedUsers = HashSet<String>()
     private val discoveredPeers = ConcurrentHashMap<String, NearbyPeer>()
     private val peerNicknames = ConcurrentHashMap<String, String>()
+    private val peerStatuses = ConcurrentHashMap<String, String>() // GREEN, YELLOW, RED
     private val lastSeenTimes = ConcurrentHashMap<String, Long>()
     private val peerRssiMap = ConcurrentHashMap<String, Int>()
     
-    // Сохраняем состояние лайков (uid -> liked)
+    // Состояние лайков
     private val peerLikedMap = ConcurrentHashMap<String, Boolean>()
+    private val likedMeSet = ConcurrentHashMap.newKeySet<String>()
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val PERMISSION_REQUEST_CODE = 101
 
     private var isEnglish = false
+    private var currentNickname = ""
+    private var currentStatusCode = "GREEN"
 
     // BLE Сканер и Вещатель
     private var bleScanner: BleScanner? = null
@@ -53,19 +56,50 @@ class MainActivity : AppCompatActivity() {
     private var recyclerView: RecyclerView? = null
     private val peerAdapter = PeerAdapter { peer ->
         peerLikedMap[peer.uid] = true
+        Toast.makeText(this, if (isEnglish) "Like sent!" else "Лайк отправлен!", Toast.LENGTH_SHORT).show()
+        
+        restartAdvertisingWithLike(peer.uid)
         scheduleUiUpdate()
     }
 
     private val uiUpdateRunnable = Runnable {
         val uiPeersList = discoveredPeers.keys.map { uid ->
             val rawName = peerNicknames[uid] ?: "User"
-            val isLiked = peerLikedMap[uid] ?: false
-            
+            val statusCode = peerStatuses[uid] ?: "GREEN"
+            val isLikedByMe = peerLikedMap[uid] ?: false
+            val isLikingMe = likedMeSet.contains(uid)
+            val rssi = peerRssiMap[uid] ?: -100
+
+            // 1. Форматируем статус готовности к общению (как в первых версиях)
+            val statusHint = when (statusCode) {
+                "GREEN" -> if (isEnglish) "🟢 Easy to approach" else "🟢 Легко подойди"
+                "YELLOW" -> if (isEnglish) "🟡 Better text first" else "🟡 Лучше сначала напиши"
+                "RED" -> if (isEnglish) "🔴 Just observing" else "🔴 Пока только наблюдаю"
+                else -> if (isEnglish) "🟢 Easy to approach" else "🟢 Легко подойди"
+            }
+
+            // 2. Расчёт расстояния
+            val distanceText = when {
+                rssi > -65 -> if (isEnglish) "Очень близко (~1-2m)" else "Очень близко (~1-2м)"
+                rssi > -80 -> if (isEnglish) "Близко (~3-5m)" else "Близко (~3-5м)"
+                else -> if (isEnglish) "Недалеко (>5m)" else "Недалеко (>5м)"
+            }
+
+            // 3. Формирование заголовок / имени
+            val displayName = when {
+                isLikedByMe && isLikingMe -> "🔥 MATCH! $rawName"
+                isLikingMe -> "❤️ $rawName (Лайкнул вас!)"
+                else -> rawName
+            }
+
+            // Итоговая подпись карточки
+            val fullLabel = "$displayName\n$statusHint\n📍 $distanceText"
+
             UiPeer(
                 uid = uid,
-                avatarLabel = rawName,
-                liked = isLiked,
-                hasBadge = false
+                avatarLabel = fullLabel,
+                liked = isLikedByMe,
+                hasBadge = isLikingMe
             )
         }
         peerAdapter.submitList(uiPeersList)
@@ -78,7 +112,6 @@ class MainActivity : AppCompatActivity() {
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
         bluetoothAdapter = bluetoothManager?.adapter
 
-        // Безопасный поиск RecyclerView без жесткой привязки к несуществующим R.id
         val rvId = getLayoutResId("recyclerView")
             .takeIf { it != 0 }
             ?: getLayoutResId("peersRecyclerView")
@@ -111,7 +144,6 @@ class MainActivity : AppCompatActivity() {
         val leaveBtn = findViewById<Button?>(getLayoutResId("leaveBtn"))
         val langBtn = findViewById<Button?>(getLayoutResId("langBtn"))
 
-        // 1. КНОПКА "ВОЙТИ В ЭФИР"
         joinBtn?.setOnClickListener {
             val nickname = nicknameInput?.text?.toString()?.trim().orEmpty()
 
@@ -125,6 +157,9 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
+            currentNickname = nickname
+            currentStatusCode = getSelectedStatusCode()
+
             if (!hasRequiredPermissions()) {
                 requestRequiredPermissions()
             } else {
@@ -132,16 +167,26 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Кнопка "Выйти / Leave"
         leaveBtn?.setOnClickListener {
             roomScreen?.visibility = View.GONE
             joinScreen?.visibility = View.VISIBLE
             stopBleServices()
         }
 
-        // 2. ПЕРЕКЛЮЧЕНИЕ ЯЗЫКА (RU / EN)
         langBtn?.setOnClickListener {
             toggleLanguage()
+        }
+    }
+
+    private fun getSelectedStatusCode(): String {
+        val radioGreen = findViewById<RadioButton?>(getLayoutResId("radioGreen"))
+        val radioYellow = findViewById<RadioButton?>(getLayoutResId("radioYellow"))
+        val radioRed = findViewById<RadioButton?>(getLayoutResId("radioRed"))
+
+        return when {
+            radioYellow?.isChecked == true -> "YELLOW"
+            radioRed?.isChecked == true -> "RED"
+            else -> "GREEN"
         }
     }
 
@@ -195,21 +240,7 @@ class MainActivity : AppCompatActivity() {
             radarStatusTv?.text = "Поиск участников рядом..."
         }
         
-        // Перерисовываем UI под новый язык
         scheduleUiUpdate()
-    }
-
-    private fun getSelectedStatusPrefix(): String {
-        val radioGreen = findViewById<RadioButton?>(getLayoutResId("radioGreen"))
-        val radioYellow = findViewById<RadioButton?>(getLayoutResId("radioYellow"))
-        val radioRed = findViewById<RadioButton?>(getLayoutResId("radioRed"))
-
-        return when {
-            radioGreen?.isChecked == true -> "🟢"
-            radioYellow?.isChecked == true -> "🟡"
-            radioRed?.isChecked == true -> "🔴"
-            else -> "🟢"
-        }
     }
 
     private fun enterRoom(nickname: String, joinScreen: LinearLayout?, roomScreen: LinearLayout?) {
@@ -217,13 +248,10 @@ class MainActivity : AppCompatActivity() {
         roomScreen?.visibility = View.VISIBLE
         Toast.makeText(this, if (isEnglish) "Entered broadcast!" else "Вы вошли в эфир!", Toast.LENGTH_SHORT).show()
 
-        val statusPrefix = getSelectedStatusPrefix()
-        val fullBroadcastName = "$statusPrefix $nickname"
-
-        startBleServices(fullBroadcastName)
+        startBleServices(nickname)
     }
 
-    private fun startBleServices(nickname: String) {
+    private fun startBleServices(nickname: String, targetLikedUid: String = "NONE") {
         val adapter = bluetoothAdapter
         if (adapter == null || !adapter.isEnabled) {
             Toast.makeText(this, if (isEnglish) "Turn on Bluetooth!" else "Включите Bluetooth!", Toast.LENGTH_LONG).show()
@@ -231,19 +259,26 @@ class MainActivity : AppCompatActivity() {
         }
 
         try {
-            // Запуск вещания своего имени и ID
-            val payload = "$nickname:$myAnonymousId"
+            // Формат пакета: NICK : ANON_ID : STATUS : LIKED_TARGET_ID
+            val payload = "$nickname:$myAnonymousId:$currentStatusCode:$targetLikedUid"
+            
+            bleAdvertiser?.stopAdvertising()
             bleAdvertiser = BleAdvertiser(adapter)
             bleAdvertiser?.startAdvertising(payload)
 
-            // Запуск сканирования окружающих
-            bleScanner = BleScanner(adapter) { peer ->
-                onPeerDiscovered(peer)
+            if (bleScanner == null) {
+                bleScanner = BleScanner(adapter) { peer ->
+                    onPeerDiscovered(peer)
+                }
+                bleScanner?.startScanning()
             }
-            bleScanner?.startScanning()
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    private fun restartAdvertisingWithLike(targetLikedUid: String) {
+        startBleServices(currentNickname, targetLikedUid)
     }
 
     private fun stopBleServices() {
@@ -300,15 +335,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onPeerDiscovered(peer: NearbyPeer) {
+        // Разбираем пакет: NICK : ANON_ID : STATUS : LIKED_TARGET_ID
         val parts = peer.anonymousId.split(":")
-        val nickname = if (parts.size >= 2) parts[0] else "User"
+        val nickname = if (parts.size >= 1) parts[0] else "User"
         val anonId = if (parts.size >= 2) parts[1] else peer.anonymousId
+        val status = if (parts.size >= 3) parts[2] else "GREEN"
+        val likedTargetId = if (parts.size >= 4) parts[3] else "NONE"
 
         if (blockedUsers.contains(anonId)) return
 
         discoveredPeers[anonId] = NearbyPeer(anonId)
         peerNicknames[anonId] = nickname
+        peerStatuses[anonId] = status
         lastSeenTimes[anonId] = System.currentTimeMillis()
+        peerRssiMap[anonId] = peer.rssi
+
+        if (likedTargetId == myAnonymousId) {
+            likedMeSet.add(anonId)
+        }
 
         scheduleUiUpdate()
     }
@@ -324,8 +368,10 @@ class MainActivity : AppCompatActivity() {
                     if (currentTime - entry.value > 10000) {
                         discoveredPeers.remove(entry.key)
                         peerNicknames.remove(entry.key)
+                        peerStatuses.remove(entry.key)
                         peerRssiMap.remove(entry.key)
                         peerLikedMap.remove(entry.key)
+                        likedMeSet.remove(entry.key)
                         iterator.remove()
                     }
                 }
