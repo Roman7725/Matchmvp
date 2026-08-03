@@ -5,26 +5,20 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.TextView
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 
 data class UiPeer(
     val uid: String,
     val avatarLabel: String,
-    var liked: Boolean = false,
+    val liked: Boolean = false,
     val hasBadge: Boolean = false
 )
 
 class PeerAdapter(
     private val onLikeClicked: (UiPeer) -> Unit
-) : RecyclerView.Adapter<PeerAdapter.PeerViewHolder>() {
-
-    private val items = mutableListOf<UiPeer>()
-
-    fun submitList(newItems: List<UiPeer>) {
-        items.clear()
-        items.addAll(newItems)
-        notifyDataSetChanged()
-    }
+) : ListAdapter<UiPeer, PeerAdapter.PeerViewHolder>(PeerDiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PeerViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_peer, parent, false)
@@ -32,10 +26,8 @@ class PeerAdapter(
     }
 
     override fun onBindViewHolder(holder: PeerViewHolder, position: Int) {
-        holder.bind(items[position])
+        holder.bind(getItem(position))
     }
-
-    override fun getItemCount(): Int = items.size
 
     inner class PeerViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val avatarText: TextView = itemView.findViewById(R.id.avatarText)
@@ -43,18 +35,35 @@ class PeerAdapter(
 
         fun bind(peer: UiPeer) {
             val context = itemView.context
+            
             avatarText.text = if (peer.hasBadge) {
                 "${context.getString(R.string.badge_prefix)} ${peer.avatarLabel}"
             } else {
                 peer.avatarLabel
             }
-            likeBtn.text = if (peer.liked) context.getString(R.string.liked_button) else context.getString(R.string.like_button)
-            likeBtn.isEnabled = !peer.liked
-            likeBtn.setOnClickListener {
-                peer.liked = true
-                notifyItemChanged(adapterPosition)
-                onLikeClicked(peer)
+
+            likeBtn.text = if (peer.liked) {
+                context.getString(R.string.liked_button)
+            } else {
+                context.getString(R.string.like_button)
             }
+            likeBtn.isEnabled = !peer.liked
+
+            likeBtn.setOnClickListener {
+                if (bindingAdapterPosition != RecyclerView.NO_POSITION) {
+                    onLikeClicked(peer)
+                }
+            }
+        }
+    }
+
+    private class PeerDiffCallback : DiffUtil.ItemCallback<UiPeer>() {
+        override fun areItemsTheSame(oldItem: UiPeer, newItem: UiPeer): Boolean {
+            return oldItem.uid == newItem.uid
+        }
+
+        override fun areContentsTheSame(oldItem: UiPeer, newItem: UiPeer): Boolean {
+            return oldItem == newItem
         }
     }
 }
