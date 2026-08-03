@@ -78,29 +78,38 @@ class MainActivity : AppCompatActivity() {
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
         bluetoothAdapter = bluetoothManager?.adapter
 
-        // Безопасная инициализация RecyclerView
-        recyclerView = findViewById<RecyclerView?>(R.id.recyclerView)
-            ?: findViewById<RecyclerView?>(R.id.peersRecyclerView)
-            ?: findViewById<RecyclerView?>(R.id.peersList)
+        // Безопасный поиск RecyclerView без жесткой привязки к несуществующим R.id
+        val rvId = getLayoutResId("recyclerView")
+            .takeIf { it != 0 }
+            ?: getLayoutResId("peersRecyclerView")
+                .takeIf { it != 0 }
+            ?: getLayoutResId("peersList")
 
-        recyclerView?.apply {
-            layoutManager = LinearLayoutManager(this@MainActivity)
-            adapter = peerAdapter
+        if (rvId != 0) {
+            recyclerView = findViewById(rvId)
+            recyclerView?.apply {
+                layoutManager = LinearLayoutManager(this@MainActivity)
+                adapter = peerAdapter
+            }
         }
 
         setupUI()
         startCleanupTask()
     }
 
-    private fun setupUI() {
-        val joinScreen = findViewById<LinearLayout>(R.id.joinScreen)
-        val roomScreen = findViewById<LinearLayout>(R.id.roomScreen)
+    private fun getLayoutResId(name: String): Int {
+        return resources.getIdentifier(name, "id", packageName)
+    }
 
-        val nicknameInput = findViewById<EditText>(R.id.nicknameInput)
-        val ageCheck = findViewById<CheckBox>(R.id.ageCheck)
-        val joinBtn = findViewById<Button>(R.id.joinBtn)
-        val leaveBtn = findViewById<Button>(R.id.leaveBtn)
-        val langBtn = findViewById<Button>(R.id.langBtn)
+    private fun setupUI() {
+        val joinScreen = findViewById<LinearLayout?>(getLayoutResId("joinScreen"))
+        val roomScreen = findViewById<LinearLayout?>(getLayoutResId("roomScreen"))
+
+        val nicknameInput = findViewById<EditText?>(getLayoutResId("nicknameInput"))
+        val ageCheck = findViewById<CheckBox?>(getLayoutResId("ageCheck"))
+        val joinBtn = findViewById<Button?>(getLayoutResId("joinBtn"))
+        val leaveBtn = findViewById<Button?>(getLayoutResId("leaveBtn"))
+        val langBtn = findViewById<Button?>(getLayoutResId("langBtn"))
 
         // 1. КНОПКА "ВОЙТИ В ЭФИР"
         joinBtn?.setOnClickListener {
@@ -139,20 +148,20 @@ class MainActivity : AppCompatActivity() {
     private fun toggleLanguage() {
         isEnglish = !isEnglish
 
-        val titleTv = findViewById<TextView>(R.id.titleTv)
-        val nicknameInput = findViewById<EditText>(R.id.nicknameInput)
-        val statusLabelTv = findViewById<TextView>(R.id.statusLabelTv)
-        val radioGreen = findViewById<RadioButton>(R.id.radioGreen)
-        val radioYellow = findViewById<RadioButton>(R.id.radioYellow)
-        val radioRed = findViewById<RadioButton>(R.id.radioRed)
-        val phoneInput = findViewById<EditText>(R.id.phoneInput)
-        val emailInput = findViewById<EditText>(R.id.emailInput)
-        val ageCheck = findViewById<CheckBox>(R.id.ageCheck)
-        val joinBtn = findViewById<Button>(R.id.joinBtn)
-        val roomTitleTv = findViewById<TextView>(R.id.roomTitleTv)
-        val historyBtn = findViewById<Button>(R.id.historyBtn)
-        val leaveBtn = findViewById<Button>(R.id.leaveBtn)
-        val radarStatusTv = findViewById<TextView>(R.id.radarStatusTv)
+        val titleTv = findViewById<TextView?>(getLayoutResId("titleTv"))
+        val nicknameInput = findViewById<EditText?>(getLayoutResId("nicknameInput"))
+        val statusLabelTv = findViewById<TextView?>(getLayoutResId("statusLabelTv"))
+        val radioGreen = findViewById<RadioButton?>(getLayoutResId("radioGreen"))
+        val radioYellow = findViewById<RadioButton?>(getLayoutResId("radioYellow"))
+        val radioRed = findViewById<RadioButton?>(getLayoutResId("radioRed"))
+        val phoneInput = findViewById<EditText?>(getLayoutResId("phoneInput"))
+        val emailInput = findViewById<EditText?>(getLayoutResId("emailInput"))
+        val ageCheck = findViewById<CheckBox?>(getLayoutResId("ageCheck"))
+        val joinBtn = findViewById<Button?>(getLayoutResId("joinBtn"))
+        val roomTitleTv = findViewById<TextView?>(getLayoutResId("roomTitleTv"))
+        val historyBtn = findViewById<Button?>(getLayoutResId("historyBtn"))
+        val leaveBtn = findViewById<Button?>(getLayoutResId("leaveBtn"))
+        val radarStatusTv = findViewById<TextView?>(getLayoutResId("radarStatusTv"))
 
         if (isEnglish) {
             titleTv?.text = "MATCH MVP"
@@ -191,9 +200,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getSelectedStatusPrefix(): String {
-        val radioGreen = findViewById<RadioButton>(R.id.radioGreen)
-        val radioYellow = findViewById<RadioButton>(R.id.radioYellow)
-        val radioRed = findViewById<RadioButton>(R.id.radioRed)
+        val radioGreen = findViewById<RadioButton?>(getLayoutResId("radioGreen"))
+        val radioYellow = findViewById<RadioButton?>(getLayoutResId("radioYellow"))
+        val radioRed = findViewById<RadioButton?>(getLayoutResId("radioRed"))
 
         return when {
             radioGreen?.isChecked == true -> "🟢"
@@ -278,9 +287,9 @@ class MainActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PERMISSION_REQUEST_CODE) {
             if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-                val joinScreen = findViewById<LinearLayout>(R.id.joinScreen)
-                val roomScreen = findViewById<LinearLayout>(R.id.roomScreen)
-                val nicknameInput = findViewById<EditText>(R.id.nicknameInput)
+                val joinScreen = findViewById<LinearLayout?>(getLayoutResId("joinScreen"))
+                val roomScreen = findViewById<LinearLayout?>(getLayoutResId("roomScreen"))
+                val nicknameInput = findViewById<EditText?>(getLayoutResId("nicknameInput"))
                 val nickname = nicknameInput?.text?.toString()?.trim().orEmpty()
 
                 enterRoom(nickname, joinScreen, roomScreen)
