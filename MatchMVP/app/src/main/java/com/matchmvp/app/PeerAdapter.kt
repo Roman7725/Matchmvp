@@ -30,22 +30,24 @@ class PeerAdapter(
     }
 
     inner class PeerViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        private val avatarText: TextView = itemView.findViewById(R.id.avatarText)
-        private val likeBtn: Button = itemView.findViewById(R.id.likeBtn)
+        // Проверяем ID: если в XML по-другому называется, подставь свои ID
+        private val avatarText: TextView? = itemView.findViewById(R.id.avatarText) ?: itemView.findViewById(R.id.peerNameTv)
+        private val likeBtn: Button? = itemView.findViewById(R.id.likeBtn) ?: itemView.findViewById(R.id.likeButton)
 
         fun bind(peer: UiPeer) {
-            avatarText.text = if (peer.hasBadge) {
+            avatarText?.text = if (peer.hasBadge) {
                 "⭐ ${peer.avatarLabel}"
             } else {
                 peer.avatarLabel
             }
 
-            likeBtn.text = if (peer.liked) "Лайк отправлен" else "Лайк"
-            likeBtn.isEnabled = !peer.liked
-
-            likeBtn.setOnClickListener {
-                if (bindingAdapterPosition != RecyclerView.NO_POSITION) {
-                    onLikeClicked(peer)
+            likeBtn?.apply {
+                text = if (peer.liked) "Лайк" else "Лайк"
+                isEnabled = !peer.liked
+                setOnClickListener {
+                    if (bindingAdapterPosition != RecyclerView.NO_POSITION) {
+                        onLikeClicked(peer)
+                    }
                 }
             }
         }
