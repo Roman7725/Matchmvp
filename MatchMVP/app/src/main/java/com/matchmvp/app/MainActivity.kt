@@ -1,6 +1,9 @@
 package com.matchmvp.app
 
 import android.Manifest
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -17,6 +20,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 class MainActivity : AppCompatActivity() {
@@ -32,9 +36,19 @@ class MainActivity : AppCompatActivity() {
 
     private var isEnglish = false
 
+    // BLE Сканер и Вещатель
+    private var bleScanner: BleScanner? = null
+    private var bleAdvertiser: BleAdvertiser? = null
+    private var bluetoothAdapter: BluetoothAdapter? = null
+
+    private var myAnonymousId: String = UUID.randomUUID().toString().substring(0, 8)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+        bluetoothAdapter = bluetoothManager?.adapter
 
         setupUI()
         startCleanupTask()
@@ -67,11 +81,11 @@ class MainActivity : AppCompatActivity() {
             if (!hasRequiredPermissions()) {
                 requestRequiredPermissions()
             } else {
-                enterRoom(joinScreen, roomScreen)
+                enterRoom(nickname, joinScreen, roomScreen)
             }
         }
 
-        // Кнопка "Выйти"
+        // Кнопка "Выйти / Leave"
         leaveBtn?.setOnClickListener {
             roomScreen?.visibility = View.GONE
             joinScreen?.visibility = View.VISIBLE
@@ -135,20 +149,41 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun enterRoom(joinScreen: LinearLayout?, roomScreen: LinearLayout?) {
+    private fun enterRoom(nickname: String, joinScreen: LinearLayout?, roomScreen: LinearLayout?) {
         joinScreen?.visibility = View.GONE
         roomScreen?.visibility = View.VISIBLE
         Toast.makeText(this, if (isEnglish) "Entered broadcast!" else "Вы вошли в эфир!", Toast.LENGTH_SHORT).show()
-        
-        startBleServices()
+
+        startBleServices(nickname)
     }
 
-    private fun startBleServices() {
-        // Здесь запускается фоновое BLE-сканирование и вещание
+    private fun startBleServices(nickname: String) {
+        val adapter = bluetoothAdapter
+        if (adapter == null || !adapter.isEnabled) {
+            Toast.makeText(this, if (isEnglish) "Turn on Bluetooth!" else "Включите Bluetooth!", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        try {
+            // Запуск вещания своего имени и ID
+            val payload = "$nickname:$myAnonymousId"
+            bleAdvertiser = BleAdvertiser(adapter)
+            bleAdvertiser?.startAdvertising(payload)
+
+            // Запуск сканирования окружающих
+            bleScanner = BleScanner(adapter) { peer ->
+                onPeerDiscovered(peer)
+            }
+            bleScanner?.startScanning()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     private fun stopBleServices() {
-        // Остановка BLE при выходе
+        // Остановка работы Ble при выходе
+        bleScanner = null
+        bleAdvertiser = null
     }
 
     private fun hasRequiredPermissions(): Boolean {
@@ -187,7 +222,10 @@ class MainActivity : AppCompatActivity() {
             if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
                 val joinScreen = findViewById<LinearLayout>(R.id.joinScreen)
                 val roomScreen = findViewById<LinearLayout>(R.id.roomScreen)
-                enterRoom(joinScreen, roomScreen)
+                val nicknameInput = findViewById<EditText>(R.id.nicknameInput)
+                val nickname = nicknameInput?.text?.toString()?.trim().orEmpty()
+
+                enterRoom(nickname, joinScreen, roomScreen)
             } else {
                 Toast.makeText(this, "Необходим доступ к Bluetooth и Геолокации!", Toast.LENGTH_LONG).show()
             }
