@@ -34,19 +34,13 @@ class PeerAdapter(
         private val likeBtn: Button = itemView.findViewById(R.id.likeBtn)
 
         fun bind(peer: UiPeer) {
-            val context = itemView.context
-            
             avatarText.text = if (peer.hasBadge) {
-                "${context.getString(R.string.badge_prefix)} ${peer.avatarLabel}"
+                "⭐ ${peer.avatarLabel}"
             } else {
                 peer.avatarLabel
             }
 
-            likeBtn.text = if (peer.liked) {
-                context.getString(R.string.liked_button)
-            } else {
-                context.getString(R.string.like_button)
-            }
+            likeBtn.text = if (peer.liked) "Лайк отправлен" else "Лайк"
             likeBtn.isEnabled = !peer.liked
 
             likeBtn.setOnClickListener {
