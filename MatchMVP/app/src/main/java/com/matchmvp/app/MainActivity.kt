@@ -1,17 +1,12 @@
 package com.matchmvp.app
 
-import android.content.res.Configuration
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.widget.Button
-import android.widget.EditText
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
-data class NearbyPeer(val anonymousId: String)
+
 
 class MainActivity : AppCompatActivity() {
 
@@ -26,51 +21,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
-        // Подключаем кнопки интерфейса
-        setupUI()
-
         startCleanupTask()
-    }
-
-    private fun setupUI() {
-        // Кнопка входа
-        val btnLogin = findViewById<Button?>(R.id.btnLogin)
-        val etUsername = findViewById<EditText?>(R.id.etUsername)
-
-        btnLogin?.setOnClickListener {
-            val username = etUsername?.text?.toString()?.trim().orEmpty()
-            if (username.isEmpty()) {
-                Toast.makeText(this, "Введите имя!", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "Добро пожаловать, $username!", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        // Переключение языков
-        val btnLangRu = findViewById<Button?>(R.id.btnLangRu)
-        val btnLangEn = findViewById<Button?>(R.id.btnLangEn)
-
-        btnLangRu?.setOnClickListener { setAppLanguage("ru") }
-        btnLangEn?.setOnClickListener { setAppLanguage("en") }
-    }
-
-    private fun setAppLanguage(languageCode: String) {
-        val currentLang = resources.configuration.locales.get(0).language
-        if (currentLang == languageCode) return
-
-        val locale = Locale(languageCode)
-        Locale.setDefault(locale)
-
-        val config = Configuration(resources.configuration)
-        config.setLocale(locale)
-
-        baseContext.resources.updateConfiguration(
-            config,
-            baseContext.resources.displayMetrics
-        )
-
-        recreate() // Перезапускаем экран для применения языка
     }
 
     private fun onPeerDiscovered(peer: NearbyPeer) {
