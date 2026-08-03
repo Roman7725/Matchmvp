@@ -50,7 +50,7 @@ class MainActivity : AppCompatActivity() {
     private var myAnonymousId: String = UUID.randomUUID().toString().substring(0, 8)
 
     // RecyclerView и Adapter
-    private lateinit var recyclerView: RecyclerView
+    private var recyclerView: RecyclerView? = null
     private val peerAdapter = PeerAdapter { peer ->
         peerLikedMap[peer.uid] = true
         scheduleUiUpdate()
@@ -78,9 +78,15 @@ class MainActivity : AppCompatActivity() {
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
         bluetoothAdapter = bluetoothManager?.adapter
 
-        recyclerView = findViewById(R.id.recyclerView)
-        recyclerView.layoutManager = LinearLayoutManager(this)
-        recyclerView.adapter = peerAdapter
+        // Безопасная инициализация RecyclerView
+        recyclerView = findViewById<RecyclerView?>(R.id.recyclerView)
+            ?: findViewById<RecyclerView?>(R.id.peersRecyclerView)
+            ?: findViewById<RecyclerView?>(R.id.peersList)
+
+        recyclerView?.apply {
+            layoutManager = LinearLayoutManager(this@MainActivity)
+            adapter = peerAdapter
+        }
 
         setupUI()
         startCleanupTask()
