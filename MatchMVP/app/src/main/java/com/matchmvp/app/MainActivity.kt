@@ -11,12 +11,12 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.RadioButton
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.os.LocaleListCompat
 import java.util.concurrent.ConcurrentHashMap
 
 class MainActivity : AppCompatActivity() {
@@ -29,6 +29,8 @@ class MainActivity : AppCompatActivity() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val PERMISSION_REQUEST_CODE = 101
+
+    private var isEnglish = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,21 +50,20 @@ class MainActivity : AppCompatActivity() {
         val leaveBtn = findViewById<Button>(R.id.leaveBtn)
         val langBtn = findViewById<Button>(R.id.langBtn)
 
-        // 1. КНОПКА "ВОЙТИ В ЭФИР" + ЗАПРОС РАЗРЕШЕНИЙ
+        // 1. КНОПКА "ВОЙТИ В ЭФИР"
         joinBtn?.setOnClickListener {
             val nickname = nicknameInput?.text?.toString()?.trim().orEmpty()
 
             if (nickname.isEmpty()) {
-                Toast.makeText(this, "Введите имя!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, if (isEnglish) "Enter nickname!" else "Введите имя!", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
             if (ageCheck?.isChecked != true) {
-                Toast.makeText(this, "Подтвердите возрастной чекбокс (18+)", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, if (isEnglish) "Confirm 18+ check!" else "Подтвердите возрастной чекбокс (18+)", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
-            // Проверяем и запрашиваем разрешения Bluetooth и Геолокации
             if (!hasRequiredPermissions()) {
                 requestRequiredPermissions()
             } else {
@@ -70,40 +71,93 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Кнопка "Выйти / Leave"
+        // Кнопка "Выйти"
         leaveBtn?.setOnClickListener {
             roomScreen?.visibility = View.GONE
             joinScreen?.visibility = View.VISIBLE
+            stopBleServices()
         }
 
-        // 2. ПЕРЕКЛЮЧЕНИЕ ЯЗЫКА (RU <-> EN)
+        // 2. ПЕРЕКЛЮЧЕНИЕ ЯЗЫКА (RU / EN)
         langBtn?.setOnClickListener {
-            val currentLocales = AppCompatDelegate.getApplicationLocales()
-            val currentLang = if (!currentLocales.isEmpty) currentLocales.get(0)?.language else "ru"
+            toggleLanguage()
+        }
+    }
 
-            val newLang = if (currentLang == "ru") "en" else "ru"
-            val appLocales = LocaleListCompat.forLanguageTags(newLang)
-            
-            // Сохраняет выбранный язык и автоматические пересоздает UI
-            AppCompatDelegate.setApplicationLocales(appLocales)
+    private fun toggleLanguage() {
+        isEnglish = !isEnglish
+
+        val titleTv = findViewById<TextView>(R.id.titleTv)
+        val nicknameInput = findViewById<EditText>(R.id.nicknameInput)
+        val statusLabelTv = findViewById<TextView>(R.id.statusLabelTv)
+        val radioGreen = findViewById<RadioButton>(R.id.radioGreen)
+        val radioYellow = findViewById<RadioButton>(R.id.radioYellow)
+        val radioRed = findViewById<RadioButton>(R.id.radioRed)
+        val phoneInput = findViewById<EditText>(R.id.phoneInput)
+        val emailInput = findViewById<EditText>(R.id.emailInput)
+        val ageCheck = findViewById<CheckBox>(R.id.ageCheck)
+        val joinBtn = findViewById<Button>(R.id.joinBtn)
+        val roomTitleTv = findViewById<TextView>(R.id.roomTitleTv)
+        val historyBtn = findViewById<Button>(R.id.historyBtn)
+        val leaveBtn = findViewById<Button>(R.id.leaveBtn)
+        val radarStatusTv = findViewById<TextView>(R.id.radarStatusTv)
+
+        if (isEnglish) {
+            titleTv?.text = "MATCH MVP"
+            nicknameInput?.hint = "Nickname"
+            statusLabelTv?.text = "Your status:"
+            radioGreen?.text = "🟢 Easy to approach"
+            radioYellow?.text = "🟡 Better text first"
+            radioRed?.text = "🔴 Just observing"
+            phoneInput?.hint = "Phone number"
+            emailInput?.hint = "Email (optional)"
+            ageCheck?.text = "I am 18 or older"
+            joinBtn?.text = "JOIN BROADCAST"
+            roomTitleTv?.text = "Nearby"
+            historyBtn?.text = "History"
+            leaveBtn?.text = "Leave"
+            radarStatusTv?.text = "Searching for nearby peers..."
+        } else {
+            titleTv?.text = "MATCH MVP"
+            nicknameInput?.hint = "Имя / Nickname"
+            statusLabelTv?.text = "Твой статус:"
+            radioGreen?.text = "🟢 Легко подойди"
+            radioYellow?.text = "🟡 Лучше сначала напиши"
+            radioRed?.text = "🔴 Пока только наблюдаю"
+            phoneInput?.hint = "Телефон / Phone number"
+            emailInput?.hint = "Email (опционально)"
+            ageCheck?.text = "Мне есть 18 лет / I am 18 or older"
+            joinBtn?.text = "ВОЙТИ В ЭФИР / JOIN BROADCAST"
+            roomTitleTv?.text = "Кто рядом / Nearby"
+            historyBtn?.text = "История"
+            leaveBtn?.text = "Выйти / Leave"
+            radarStatusTv?.text = "Поиск участников рядом..."
         }
     }
 
     private fun enterRoom(joinScreen: LinearLayout?, roomScreen: LinearLayout?) {
         joinScreen?.visibility = View.GONE
         roomScreen?.visibility = View.VISIBLE
-        Toast.makeText(this, "Вы вошли в эфир!", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, if (isEnglish) "Entered broadcast!" else "Вы вошли в эфир!", Toast.LENGTH_SHORT).show()
+        
+        startBleServices()
     }
 
-    // ==========================================
-    // ПРОВЕРКА И ЗАПРОС РАЗРЕШЕНИЙ (BLE / GPS)
-    // ==========================================
+    private fun startBleServices() {
+        // Здесь запускается фоновое BLE-сканирование и вещание
+    }
+
+    private fun stopBleServices() {
+        // Остановка BLE при выходе
+    }
+
     private fun hasRequiredPermissions(): Boolean {
         val permissions = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             permissions.add(Manifest.permission.BLUETOOTH_SCAN)
             permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+            permissions.add(Manifest.permission.BLUETOOTH_ADVERTISE)
         }
 
         return permissions.all {
@@ -117,6 +171,7 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             permissions.add(Manifest.permission.BLUETOOTH_SCAN)
             permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+            permissions.add(Manifest.permission.BLUETOOTH_ADVERTISE)
         }
 
         ActivityCompat.requestPermissions(this, permissions.toTypedArray(), PERMISSION_REQUEST_CODE)
@@ -134,7 +189,7 @@ class MainActivity : AppCompatActivity() {
                 val roomScreen = findViewById<LinearLayout>(R.id.roomScreen)
                 enterRoom(joinScreen, roomScreen)
             } else {
-                Toast.makeText(this, "Для поиска устройств необходим доступ к Bluetooth и GPS!", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Необходим доступ к Bluetooth и Геолокации!", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -175,6 +230,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun scheduleUiUpdate() {
-        // Логика обновления интерфейса
+        // Логика обновления списка участников в RecyclerView
     }
 }
