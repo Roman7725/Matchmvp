@@ -15,11 +15,14 @@ import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -30,6 +33,9 @@ class MainActivity : AppCompatActivity() {
     private val peerNicknames = ConcurrentHashMap<String, String>()
     private val lastSeenTimes = ConcurrentHashMap<String, Long>()
     private val peerRssiMap = ConcurrentHashMap<String, Int>()
+    
+    // Сохраняем состояние лайков (uid -> liked)
+    private val peerLikedMap = ConcurrentHashMap<String, Boolean>()
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val PERMISSION_REQUEST_CODE = 101
@@ -43,12 +49,38 @@ class MainActivity : AppCompatActivity() {
 
     private var myAnonymousId: String = UUID.randomUUID().toString().substring(0, 8)
 
+    // RecyclerView и Adapter
+    private lateinit var recyclerView: RecyclerView
+    private val peerAdapter = PeerAdapter { peer ->
+        peerLikedMap[peer.uid] = true
+        scheduleUiUpdate()
+    }
+
+    private val uiUpdateRunnable = Runnable {
+        val uiPeersList = discoveredPeers.keys.map { uid ->
+            val rawName = peerNicknames[uid] ?: "User"
+            val isLiked = peerLikedMap[uid] ?: false
+            
+            UiPeer(
+                uid = uid,
+                avatarLabel = rawName,
+                liked = isLiked,
+                hasBadge = false
+            )
+        }
+        peerAdapter.submitList(uiPeersList)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
         bluetoothAdapter = bluetoothManager?.adapter
+
+        recyclerView = findViewById(R.id.recyclerView)
+        recyclerView.layoutManager = LinearLayoutManager(this)
+        recyclerView.adapter = peerAdapter
 
         setupUI()
         startCleanupTask()
@@ -147,6 +179,22 @@ class MainActivity : AppCompatActivity() {
             leaveBtn?.text = "Выйти / Leave"
             radarStatusTv?.text = "Поиск участников рядом..."
         }
+        
+        // Перерисовываем UI под новый язык
+        scheduleUiUpdate()
+    }
+
+    private fun getSelectedStatusPrefix(): String {
+        val radioGreen = findViewById<RadioButton>(R.id.radioGreen)
+        val radioYellow = findViewById<RadioButton>(R.id.radioYellow)
+        val radioRed = findViewById<RadioButton>(R.id.radioRed)
+
+        return when {
+            radioGreen?.isChecked == true -> "🟢"
+            radioYellow?.isChecked == true -> "🟡"
+            radioRed?.isChecked == true -> "🔴"
+            else -> "🟢"
+        }
     }
 
     private fun enterRoom(nickname: String, joinScreen: LinearLayout?, roomScreen: LinearLayout?) {
@@ -154,7 +202,10 @@ class MainActivity : AppCompatActivity() {
         roomScreen?.visibility = View.VISIBLE
         Toast.makeText(this, if (isEnglish) "Entered broadcast!" else "Вы вошли в эфир!", Toast.LENGTH_SHORT).show()
 
-        startBleServices(nickname)
+        val statusPrefix = getSelectedStatusPrefix()
+        val fullBroadcastName = "$statusPrefix $nickname"
+
+        startBleServices(fullBroadcastName)
     }
 
     private fun startBleServices(nickname: String) {
@@ -181,7 +232,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun stopBleServices() {
-        // Остановка работы Ble при выходе
+        bleScanner?.stopScanning()
+        bleAdvertiser?.stopAdvertising()
         bleScanner = null
         bleAdvertiser = null
     }
@@ -258,6 +310,7 @@ class MainActivity : AppCompatActivity() {
                         discoveredPeers.remove(entry.key)
                         peerNicknames.remove(entry.key)
                         peerRssiMap.remove(entry.key)
+                        peerLikedMap.remove(entry.key)
                         iterator.remove()
                     }
                 }
@@ -268,6 +321,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun scheduleUiUpdate() {
-        // Логика обновления списка участников в RecyclerView
+        mainHandler.removeCallbacks(uiUpdateRunnable)
+        mainHandler.postDelayed(uiUpdateRunnable, 300L)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        stopBleServices()
+        mainHandler.removeCallbacks(uiUpdateRunnable)
     }
 }
