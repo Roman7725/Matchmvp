@@ -2,32 +2,29 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.matchmvp.app">
 
-    <!-- BLE advertising + scanning на Android 12+ (API 31+) -->
+    <!-- Сетевые разрешения -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- BLE + Bluetooth permissions -->
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
-        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
-    <!-- Те же возможности на Android 8-11 (API 26-30) — там нужны
-         старые разрешения, без них приложение не сможет использовать
-         Bluetooth вообще на этих версиях (баг, исправлено). -->
-    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <!-- Для совместимости со старыми и новыми Android -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
 
-    <!-- Требуется старыми версиями Android для BLE-сканирования.
-         Мы не читаем и не сохраняем реальные GPS-координаты — это
-         ограничение самой ОС Android для BLE API, не наш выбор. -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"
-        android:maxSdkVersion="30" />
-
-    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Геолокация, необходимая для работы BLE/P2P -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
 
     <application
         android:allowBackup="false"
         android:label="Match MVP"
-        android:hardwareAccelerated="false"
+        android:hardwareAccelerated="true"
         android:theme="@style/Theme.MatchMVP">
 
         <activity
