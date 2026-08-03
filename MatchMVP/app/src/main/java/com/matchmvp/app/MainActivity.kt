@@ -68,9 +68,9 @@ class MainActivity : AppCompatActivity() {
             val statusCode = peerStatuses[uid] ?: "GREEN"
             val isLikedByMe = peerLikedMap[uid] ?: false
             val isLikingMe = likedMeSet.contains(uid)
-            val rssi = peerRssiMap[uid] ?: -100
+            val rssi = peerRssiMap[uid] ?: -70
 
-            // 1. Форматируем статус готовности к общению (как в первых версиях)
+            // 1. Статус готовности к общению
             val statusHint = when (statusCode) {
                 "GREEN" -> if (isEnglish) "🟢 Easy to approach" else "🟢 Легко подойди"
                 "YELLOW" -> if (isEnglish) "🟡 Better text first" else "🟡 Лучше сначала напиши"
@@ -85,14 +85,13 @@ class MainActivity : AppCompatActivity() {
                 else -> if (isEnglish) "Недалеко (>5m)" else "Недалеко (>5м)"
             }
 
-            // 3. Формирование заголовок / имени
+            // 3. Формирование имени
             val displayName = when {
                 isLikedByMe && isLikingMe -> "🔥 MATCH! $rawName"
                 isLikingMe -> "❤️ $rawName (Лайкнул вас!)"
                 else -> rawName
             }
 
-            // Итоговая подпись карточки
             val fullLabel = "$displayName\n$statusHint\n📍 $distanceText"
 
             UiPeer(
@@ -334,6 +333,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun extractRssiSafely(peer: NearbyPeer): Int {
+        return try {
+            val field = peer.javaClass.getDeclaredField("rssi")
+            field.isAccessible = true
+            (field.get(peer) as? Int) ?: -70
+        } catch (e: Exception) {
+            -70
+        }
+    }
+
     private fun onPeerDiscovered(peer: NearbyPeer) {
         // Разбираем пакет: NICK : ANON_ID : STATUS : LIKED_TARGET_ID
         val parts = peer.anonymousId.split(":")
@@ -348,7 +357,7 @@ class MainActivity : AppCompatActivity() {
         peerNicknames[anonId] = nickname
         peerStatuses[anonId] = status
         lastSeenTimes[anonId] = System.currentTimeMillis()
-        peerRssiMap[anonId] = peer.rssi
+        peerRssiMap[anonId] = extractRssiSafely(peer)
 
         if (likedTargetId == myAnonymousId) {
             likedMeSet.add(anonId)
