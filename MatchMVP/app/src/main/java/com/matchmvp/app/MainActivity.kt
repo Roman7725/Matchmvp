@@ -35,8 +35,8 @@ class MainActivity : AppCompatActivity() {
     private val lastSeenTimes = ConcurrentHashMap<String, Long>()
     private val peerRssiMap = ConcurrentHashMap<String, Int>()
     
-    private val peerLikedMap = ConcurrentHashMap<String, Boolean>() // Кого лайкнул Я
-    private val likedMeSet = ConcurrentHashMap.newKeySet<String>() // Кто лайкнул МЕНЯ
+    private val peerLikedMap = ConcurrentHashMap<String, Boolean>() // Кого лайкнул Я (нажал кнопку)
+    private val likedMeSet = ConcurrentHashMap.newKeySet<String>() // Кто лайкнул МЕНЯ (получено по BLE)
     private val peerContactsMap = ConcurrentHashMap<String, String>() // Полученные контакты
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -48,8 +48,9 @@ class MainActivity : AppCompatActivity() {
     private var myPhone = ""
     private var myEmail = ""
 
-    private var currentTargetLikedUid = "NONE"
-    private var currentContactPayload = "NONE"
+    // Временный таргетинг лайка (сбрасывается автоматически!)
+    private var activeTargetLikedUid = "NONE"
+    private var activeContactPayload = "NONE"
 
     private var bluetoothAdapter: BluetoothAdapter? = null
     private var bleAdvertiser: BluetoothLeAdvertiser? = null
@@ -58,7 +59,6 @@ class MainActivity : AppCompatActivity() {
     private var advertiseCallback: AdvertiseCallback? = null
     private var scanCallback: ScanCallback? = null
 
-    // Сокращаем свой ID до 4 символов ради экономии байтов BLE
     private var myAnonymousId: String = UUID.randomUUID().toString().substring(0, 4)
 
     private var recyclerView: RecyclerView? = null
@@ -70,6 +70,7 @@ class MainActivity : AppCompatActivity() {
         val uiPeersList = discoveredPeers.keys.map { uid ->
             val rawName = peerNicknames[uid] ?: "User"
             val statusCode = peerStatuses[uid] ?: "GREEN"
+            
             val isLikedByMe = peerLikedMap[uid] == true
             val isLikingMe = likedMeSet.contains(uid)
             val rssi = peerRssiMap[uid] ?: -70
@@ -82,19 +83,23 @@ class MainActivity : AppCompatActivity() {
                 else -> if (isEnglish) "🟢 Easy to approach" else "🟢 Легко подойди"
             }
 
+            // Дистанция по RSSI
             val distanceText = when {
                 rssi > -65 -> if (isEnglish) "Very close (~1-2m)" else "Очень близко (~1-2м)"
                 rssi > -80 -> if (isEnglish) "Close (~3-5m)" else "Близко (~3-5м)"
                 else -> if (isEnglish) "Nearby (>5m)" else "Недалеко (>5м)"
             }
 
-            // ЖЁСТКАЯ ПРОВЕРКА МАТЧА
+            // ЧЁТКАЯ ПРОВЕРКА МАТЧА
             val displayName = when {
+                // MATCH загорается ИСКЛЮЧИТЕЛЬНО при взаимности!
                 isLikedByMe && isLikingMe -> {
                     val contactStr = if (!contactInfo.isNullOrEmpty() && contactInfo != "NONE") "\n📱 $contactInfo" else ""
                     "🔥 MATCH! $rawName$contactStr"
                 }
+                // Когда его лайкнули, но он ЕЩЁ НЕ НАЖАЛ в ответ
                 isLikingMe -> if (isEnglish) "❤️ $rawName (Liked you!)" else "❤️ $rawName (Лайкнул вас!)"
+                // Когда он сам нажал лайк, но второй ещё не ответил
                 isLikedByMe -> if (isEnglish) "⭐ $rawName (Liked)" else "⭐ $rawName (Отправлен лайк)"
                 else -> rawName
             }
@@ -209,21 +214,38 @@ class MainActivity : AppCompatActivity() {
             .setTitle(title)
             .setItems(options.toTypedArray()) { _, which ->
                 val selectedAction = actions[which]
-                currentContactPayload = when (selectedAction) {
+                val contactToSend = when (selectedAction) {
                     "PHONE" -> myPhone
                     "EMAIL" -> myEmail
                     else -> "NONE"
                 }
 
+                // Запоминаем, что мы локально нажали лайк
                 peerLikedMap[targetUid] = true
-                currentTargetLikedUid = targetUid
-
+                
+                // Импульсная отправка лайка по BLE
+                sendTemporaryLike(targetUid, contactToSend)
+                
                 Toast.makeText(this, if (isEnglish) "Like sent!" else "Лайк отправлен!", Toast.LENGTH_SHORT).show()
-                restartAdvertisingWithLike(targetUid, currentContactPayload)
                 scheduleUiUpdate()
             }
             .setNegativeButton(if (isEnglish) "Cancel" else "Отмена", null)
             .show()
+    }
+
+    // Отправка лайка в эфир ровно на 4 секунды, затем сброс!
+    private fun sendTemporaryLike(targetUid: String, contactData: String) {
+        activeTargetLikedUid = targetUid
+        activeContactPayload = contactData
+
+        startBleServices(currentNickname, activeTargetLikedUid, activeContactPayload)
+
+        // Через 4 секунды снимаем лайк из активного радиопакета
+        mainHandler.postDelayed({
+            activeTargetLikedUid = "NONE"
+            activeContactPayload = "NONE"
+            startBleServices(currentNickname, "NONE", "NONE")
+        }, 4000L)
     }
 
     private fun getSelectedStatusCode(): String {
@@ -305,7 +327,6 @@ class MainActivity : AppCompatActivity() {
 
         stopBleServices()
 
-        // Сверхкомпактная подгонка под жесткий лимит BLE в 31 байт!
         val safeNickname = if (nickname.length > 4) nickname.substring(0, 4) else nickname
         val safeContact = if (contactData.length > 7) contactData.substring(0, 7) else contactData
 
@@ -397,21 +418,16 @@ class MainActivity : AppCompatActivity() {
             lastSeenTimes[anonId] = System.currentTimeMillis()
             peerRssiMap[anonId] = rssi
 
+            // Проверяем, адресован ли лайк нам
             if (likedTargetId == myAnonymousId) {
                 likedMeSet.add(anonId)
                 if (contactInfo != "NONE") {
                     peerContactsMap[anonId] = contactInfo
                 }
-            } else {
-                likedMeSet.remove(anonId)
             }
 
             scheduleUiUpdate()
         }
-    }
-
-    private fun restartAdvertisingWithLike(targetLikedUid: String, contactData: String) {
-        startBleServices(currentNickname, targetLikedUid, contactData)
     }
 
     private fun stopBleServices() {
