@@ -258,19 +258,20 @@ class MainActivity : AppCompatActivity() {
         }
 
         try {
-            // Формат пакета: NICK : ANON_ID : STATUS : LIKED_TARGET_ID
-            val payload = "$nickname:$myAnonymousId:$currentStatusCode:$targetLikedUid"
+            // 1. Сбрасываем текущие сервисы, чтобы сбросить кэш BLE и избежать наслоений
+            stopBleServices()
+
+            // 2. Ограничиваем имя 6 символами, так как кириллица занимает 2 байта на символ в UTF-8
+            val safeNickname = if (nickname.length > 6) nickname.substring(0, 6) else nickname
+            val payload = "$safeNickname:$myAnonymousId:$currentStatusCode:$targetLikedUid"
             
-            bleAdvertiser?.stopAdvertising()
             bleAdvertiser = BleAdvertiser(adapter)
             bleAdvertiser?.startAdvertising(payload)
 
-            if (bleScanner == null) {
-                bleScanner = BleScanner(adapter) { peer ->
-                    onPeerDiscovered(peer)
-                }
-                bleScanner?.startScanning()
+            bleScanner = BleScanner(adapter) { peer ->
+                onPeerDiscovered(peer)
             }
+            bleScanner?.startScanning()
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -281,10 +282,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun stopBleServices() {
-        bleScanner?.stopScanning()
-        bleAdvertiser?.stopAdvertising()
-        bleScanner = null
-        bleAdvertiser = null
+        try {
+            bleScanner?.stopScanning()
+            bleAdvertiser?.stopAdvertising()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            bleScanner = null
+            bleAdvertiser = null
+        }
     }
 
     private fun hasRequiredPermissions(): Boolean {
