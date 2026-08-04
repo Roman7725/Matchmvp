@@ -43,6 +43,7 @@ class MainActivity : AppCompatActivity() {
     private val peerLikedMap = ConcurrentHashMap<String, Boolean>() 
     private val likedMeSet = ConcurrentHashMap.newKeySet<String>() 
     private val peerContactsMap = ConcurrentHashMap<String, String>() 
+    private val notifiedMatches = HashSet<String>() // Чтобы не спамить уведомлением при каждом скане
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val PERMISSION_REQUEST_CODE = 101
@@ -72,7 +73,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: SharedPreferences
 
-    // Формула перевода RSSI в расстояние (в метрах)
+    // Формула перевода RSSI в расстояние
     private fun calculateDistanceInMeters(rssi: Int, txPower: Int = -59): Double {
         if (rssi == 0) return -1.0
         val ratio = rssi * 1.0 / txPower
@@ -88,12 +89,12 @@ class MainActivity : AppCompatActivity() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
                 val vibrator = vibratorManager.defaultVibrator
-                vibrator.vibrate(VibrationEffect.createOneShot(400, VibrationEffect.DEFAULT_AMPLITUDE))
+                vibrator.vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE))
             } else {
                 @Suppress("DEPRECATION")
                 val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
                 @Suppress("DEPRECATION")
-                vibrator.vibrate(400)
+                vibrator.vibrate(500)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -111,7 +112,11 @@ class MainActivity : AppCompatActivity() {
             val contactInfo = peerContactsMap[uid] ?: prefs.getString("contact_$uid", null)
 
             val exactMeters = calculateDistanceInMeters(rssi)
-            val formattedMeters = if (exactMeters > 0) String.format("%.1f", exactMeters) else "?"
+            val formattedDistance = when {
+                exactMeters <= 0 -> "?"
+                exactMeters < 1.0 -> "${(exactMeters * 100).toInt()}см"
+                else -> String.format("%.1fm", exactMeters)
+            }
 
             val statusHint = when (statusCode) {
                 "GREEN" -> if (isEnglish) "🟢 Easy to approach" else "🟢 Легко подойди"
@@ -120,26 +125,18 @@ class MainActivity : AppCompatActivity() {
                 else -> if (isEnglish) "🟢 Easy to approach" else "🟢 Легко подойди"
             }
 
-            val distanceText = when {
-                rssi > -65 -> if (isEnglish) "Very close (~$formattedMeters m)" else "Очень близко (~$formattedMeters м)"
-                rssi > -80 -> if (isEnglish) "Close (~$formattedMeters m)" else "Близко (~$formattedMeters м)"
-                else -> if (isEnglish) "Nearby (~$formattedMeters m)" else "Недалеко (~$formattedMeters м)"
-            }
-
             val displayName = when {
-                // ОБОЮДНЫЙ ЛАЙК: Показываем MATCH и настоящий контакт
+                // ОБОЮДНЫЙ ЛАЙК: Показываем MATCH и контакт
                 isLikedByMe && isLikingMe -> {
                     saveMatchToHistory(rawName, contactInfo)
                     val contactStr = if (!contactInfo.isNullOrEmpty() && contactInfo != "NONE") "\n📱 $contactInfo" else ""
                     "🔥 MATCH! $rawName$contactStr"
                 }
-                // Я отправил лайк (видно только мне)
                 isLikedByMe -> if (isEnglish) "⭐ $rawName (Liked)" else "⭐ $rawName (Отправлен лайк)"
-                // Тот кто меня лайкнул отображается стандартно до моего взаимного клика
                 else -> rawName
             }
 
-            val fullLabel = "$displayName\n$statusHint\n📍 $distanceText"
+            val fullLabel = "$displayName\n$statusHint\n📍 $formattedDistance"
 
             UiPeer(
                 uid = uid,
@@ -268,37 +265,54 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ВЫБОР КОНТАКТА ДЛЯ ОТПРАВКИ
     private fun showContactChoiceDialog(targetUid: String) {
         val optionsList = mutableListOf<String>()
         val valuesList = mutableListOf<String>()
 
         if (myPhone.isNotEmpty()) {
-            optionsList.add(if (isEnglish) "Send Phone: $myPhone" else "Отправить телефон: $myPhone")
+            optionsList.add(if (isEnglish) "Phone: $myPhone" else "Телефон: $myPhone")
             valuesList.add(myPhone)
         }
         if (myEmail.isNotEmpty()) {
-            optionsList.add(if (isEnglish) "Send Email: $myEmail" else "Отправить Email: $myEmail")
+            optionsList.add(if (isEnglish) "Email: $myEmail" else "Email: $myEmail")
             valuesList.add(myEmail)
         }
-        optionsList.add(if (isEnglish) "Don't send contact" else "Ничего не отправлять")
+        optionsList.add(if (isEnglish) "Don't send contact" else "Без контакта (только лайк)")
         valuesList.add("NONE")
 
-        val title = if (isEnglish) "Share Contact with Like?" else "Поделиться контактом с лайком?"
+        val title = if (isEnglish) "Share contact with Like?" else "Чем поделиться при совпадении?"
 
         AlertDialog.Builder(this)
             .setTitle(title)
             .setItems(optionsList.toTypedArray()) { _, which ->
                 contactPayload = valuesList[which]
-
                 peerLikedMap[targetUid] = true
                 targetLikedUid = targetUid
 
                 Toast.makeText(this, if (isEnglish) "Like sent!" else "Лайк отправлен!", Toast.LENGTH_SHORT).show()
                 
+                // Перезапускаем эфир, чтобы закодировать новый лайк и контакт
                 startBleServices(currentNickname)
                 scheduleUiUpdate()
             }
             .setNegativeButton(if (isEnglish) "Cancel" else "Отмена", null)
+            .show()
+    }
+
+    // ВСПЛЫВАЮЩИЙ ДИАЛОГ ПРИ ОБОЮДНОМ MATCH!
+    private fun showMatchDialog(name: String, contact: String?) {
+        val title = if (isEnglish) "🎉 IT'S A MATCH!" else "🎉 ВЗАИМНОЕ СОВПАДЕНИЕ!"
+        val contactText = if (!contact.isNullOrEmpty() && contact != "NONE") {
+            if (isEnglish) "Contact: $contact" else "Контакт: $contact"
+        } else {
+            if (isEnglish) "User chose not to share contact details." else "Пользователь решил не указывать контакт."
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage((if (isEnglish) "You and $name liked each other!\n\n" else "Вы и $name понравились друг другу!\n\n") + contactText)
+            .setPositiveButton("OK", null)
             .show()
     }
 
@@ -381,6 +395,7 @@ class MainActivity : AppCompatActivity() {
 
         stopBleServices()
 
+        // Жестко обрезаем поля, чтобы гарантировать помещаемость пакета в 31 байт BLE
         val safeNickname = if (nickname.length > 4) nickname.substring(0, 4) else nickname
         val safeContact = if (contactPayload.length > 12) contactPayload.substring(0, 12) else contactPayload 
 
@@ -403,7 +418,7 @@ class MainActivity : AppCompatActivity() {
 
         advertiseCallback = object : AdvertiseCallback() {
             override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
-                Log.d("BLE_TEST", "Advertising started")
+                Log.d("BLE_TEST", "Advertising started: $payloadStr")
             }
 
             override fun onStartFailure(errorCode: Int) {
@@ -472,18 +487,23 @@ class MainActivity : AppCompatActivity() {
             lastSeenTimes[anonId] = System.currentTimeMillis()
             peerRssiMap[anonId] = rssi
 
+            // Проверяем: ответил ли партнер лайком мне
             if (likedTargetId == myAnonymousId) {
-                val isNewMatch = !likedMeSet.contains(anonId)
                 likedMeSet.add(anonId)
-                
+
                 if (contactInfo != "NONE") {
                     peerContactsMap[anonId] = contactInfo
                     prefs.edit().putString("contact_$anonId", contactInfo).apply()
                 }
 
-                // Вибрируем при первом обнаружении взаимного лайка
-                if (isNewMatch && peerLikedMap[anonId] == true) {
+                // ОБНАРУЖЕН ОБОЮДНЫЙ MATCH!
+                if (peerLikedMap[anonId] == true && !notifiedMatches.contains(anonId)) {
+                    notifiedMatches.add(anonId)
                     triggerVibration()
+                    
+                    mainHandler.post {
+                        showMatchDialog(nickname, contactInfo)
+                    }
                 }
             } else {
                 likedMeSet.remove(anonId)
@@ -573,6 +593,7 @@ class MainActivity : AppCompatActivity() {
                         peerLikedMap.remove(entry.key)
                         likedMeSet.remove(entry.key)
                         peerContactsMap.remove(entry.key)
+                        notifiedMatches.remove(entry.key)
                         iterator.remove()
                     }
                 }
