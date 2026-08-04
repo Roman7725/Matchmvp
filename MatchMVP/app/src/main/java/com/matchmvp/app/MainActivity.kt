@@ -34,8 +34,8 @@ class MainActivity : AppCompatActivity() {
     private val lastSeenTimes = ConcurrentHashMap<String, Long>()
     private val peerRssiMap = ConcurrentHashMap<String, Int>()
     
-    private val peerLikedMap = ConcurrentHashMap<String, Boolean>()
-    private val likedMeSet = ConcurrentHashMap.newKeySet<String>()
+    private val peerLikedMap = ConcurrentHashMap<String, Boolean>() // Кого лайкнул Я
+    private val likedMeSet = ConcurrentHashMap.newKeySet<String>() // Кто лайкнул МЕНЯ
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val PERMISSION_REQUEST_CODE = 101
@@ -77,14 +77,16 @@ class MainActivity : AppCompatActivity() {
             }
 
             val distanceText = when {
-                rssi > -65 -> if (isEnglish) "Очень близко (~1-2m)" else "Очень близко (~1-2м)"
-                rssi > -80 -> if (isEnglish) "Близко (~3-5m)" else "Близко (~3-5м)"
-                else -> if (isEnglish) "Недалеко (>5m)" else "Недалеко (>5м)"
+                rssi > -65 -> if (isEnglish) "Very close (~1-2m)" else "Очень близко (~1-2м)"
+                rssi > -80 -> if (isEnglish) "Close (~3-5m)" else "Близко (~3-5м)"
+                else -> if (isEnglish) "Nearby (>5m)" else "Недалеко (>5м)"
             }
 
+            // ЛОГИКА ОТОБРАЖЕНИЯ МАТЧЕЙ И ЛАЙКОВ
             val displayName = when {
                 isLikedByMe && isLikingMe -> "🔥 MATCH! $rawName"
-                isLikingMe -> "❤️ $rawName (Лайкнул вас!)"
+                isLikingMe -> if (isEnglish) "❤️ $rawName (Liked you!)" else "❤️ $rawName (Лайкнул вас!)"
+                isLikedByMe -> if (isEnglish) "⭐ $rawName (Liked)" else "⭐ $rawName (Отправлен лайк)"
                 else -> rawName
             }
 
@@ -246,7 +248,7 @@ class MainActivity : AppCompatActivity() {
     private fun startBleServices(nickname: String, targetLikedUid: String = "NONE") {
         val adapter = bluetoothAdapter
         if (adapter == null || !adapter.isEnabled) {
-            Toast.makeText(this, "Включите Bluetooth!", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, if (isEnglish) "Turn on Bluetooth!" else "Включите Bluetooth!", Toast.LENGTH_LONG).show()
             return
         }
 
@@ -256,10 +258,8 @@ class MainActivity : AppCompatActivity() {
         val payloadStr = "$safeNickname:$myAnonymousId:$currentStatusCode:$targetLikedUid"
         val payloadBytes = payloadStr.toByteArray(StandardCharsets.UTF_8)
 
-        // 1. Запуск вещания (Advertising)
         bleAdvertiser = adapter.bluetoothLeAdvertiser
         if (bleAdvertiser == null) {
-            Toast.makeText(this, "Ошибка: Этот телефон НЕ поддерживает BLE Передатчик!", Toast.LENGTH_LONG).show()
             return
         }
 
@@ -277,12 +277,10 @@ class MainActivity : AppCompatActivity() {
         advertiseCallback = object : AdvertiseCallback() {
             override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
                 Log.d("BLE_TEST", "Advertising started successfully")
-                Toast.makeText(this@MainActivity, "Передатчик запущен!", Toast.LENGTH_SHORT).show()
             }
 
             override fun onStartFailure(errorCode: Int) {
                 Log.e("BLE_TEST", "Advertising failed: $errorCode")
-                Toast.makeText(this@MainActivity, "Ошибка передатчика: $errorCode", Toast.LENGTH_LONG).show()
             }
         }
 
@@ -294,12 +292,8 @@ class MainActivity : AppCompatActivity() {
             e.printStackTrace()
         }
 
-        // 2. Запуск сканирования (Scanner)
         bleScanner = adapter.bluetoothLeScanner
-        if (bleScanner == null) {
-            Toast.makeText(this, "Ошибка: Сканер BLE недоступен", Toast.LENGTH_SHORT).show()
-            return
-        }
+        if (bleScanner == null) return
 
         val scanSettings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
@@ -322,7 +316,6 @@ class MainActivity : AppCompatActivity() {
         try {
             if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
                 bleScanner?.startScan(null, scanSettings, scanCallback)
-                Toast.makeText(this, "Поиск запущен...", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -351,6 +344,7 @@ class MainActivity : AppCompatActivity() {
             lastSeenTimes[anonId] = System.currentTimeMillis()
             peerRssiMap[anonId] = rssi
 
+            // Проверяем, адресован ли лайк мне
             if (likedTargetId == myAnonymousId) {
                 likedMeSet.add(anonId)
             }
