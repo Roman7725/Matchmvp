@@ -3,38 +3,37 @@ package com.matchmvp.app
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
+import android.bluetooth.le.*
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.ParcelUuid
+import android.util.Log
 import android.view.View
-import android.widget.Button
-import android.widget.CheckBox
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.RadioButton
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import java.nio.charset.StandardCharsets
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 class MainActivity : AppCompatActivity() {
 
+    private val SERVICE_UUID = UUID.fromString("0000FD6F-0000-1000-8000-00805F9B34FB")
+
     private val blockedUsers = HashSet<String>()
     private val discoveredPeers = ConcurrentHashMap<String, NearbyPeer>()
     private val peerNicknames = ConcurrentHashMap<String, String>()
-    private val peerStatuses = ConcurrentHashMap<String, String>() // GREEN, YELLOW, RED
+    private val peerStatuses = ConcurrentHashMap<String, String>()
     private val lastSeenTimes = ConcurrentHashMap<String, Long>()
     private val peerRssiMap = ConcurrentHashMap<String, Int>()
     
-    // Состояние лайков
     private val peerLikedMap = ConcurrentHashMap<String, Boolean>()
     private val likedMeSet = ConcurrentHashMap.newKeySet<String>()
 
@@ -45,19 +44,19 @@ class MainActivity : AppCompatActivity() {
     private var currentNickname = ""
     private var currentStatusCode = "GREEN"
 
-    // BLE Сканер и Вещатель
-    private var bleScanner: BleScanner? = null
-    private var bleAdvertiser: BleAdvertiser? = null
     private var bluetoothAdapter: BluetoothAdapter? = null
+    private var bleAdvertiser: BluetoothLeAdvertiser? = null
+    private var bleScanner: BluetoothLeScanner? = null
 
-    private var myAnonymousId: String = UUID.randomUUID().toString().substring(0, 8)
+    private var advertiseCallback: AdvertiseCallback? = null
+    private var scanCallback: ScanCallback? = null
 
-    // RecyclerView и Adapter
+    private var myAnonymousId: String = UUID.randomUUID().toString().substring(0, 6)
+
     private var recyclerView: RecyclerView? = null
     private val peerAdapter = PeerAdapter { peer ->
         peerLikedMap[peer.uid] = true
         Toast.makeText(this, if (isEnglish) "Like sent!" else "Лайк отправлен!", Toast.LENGTH_SHORT).show()
-        
         restartAdvertisingWithLike(peer.uid)
         scheduleUiUpdate()
     }
@@ -70,7 +69,6 @@ class MainActivity : AppCompatActivity() {
             val isLikingMe = likedMeSet.contains(uid)
             val rssi = peerRssiMap[uid] ?: -70
 
-            // 1. Статус готовности к общению
             val statusHint = when (statusCode) {
                 "GREEN" -> if (isEnglish) "🟢 Easy to approach" else "🟢 Легко подойди"
                 "YELLOW" -> if (isEnglish) "🟡 Better text first" else "🟡 Лучше сначала напиши"
@@ -78,14 +76,12 @@ class MainActivity : AppCompatActivity() {
                 else -> if (isEnglish) "🟢 Easy to approach" else "🟢 Легко подойди"
             }
 
-            // 2. Расчёт расстояния
             val distanceText = when {
                 rssi > -65 -> if (isEnglish) "Очень близко (~1-2m)" else "Очень близко (~1-2м)"
                 rssi > -80 -> if (isEnglish) "Близко (~3-5m)" else "Близко (~3-5м)"
                 else -> if (isEnglish) "Недалеко (>5m)" else "Недалеко (>5м)"
             }
 
-            // 3. Формирование имени
             val displayName = when {
                 isLikedByMe && isLikingMe -> "🔥 MATCH! $rawName"
                 isLikingMe -> "❤️ $rawName (Лайкнул вас!)"
@@ -178,7 +174,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getSelectedStatusCode(): String {
-        val radioGreen = findViewById<RadioButton?>(getLayoutResId("radioGreen"))
         val radioYellow = findViewById<RadioButton?>(getLayoutResId("radioYellow"))
         val radioRed = findViewById<RadioButton?>(getLayoutResId("radioRed"))
 
@@ -245,35 +240,122 @@ class MainActivity : AppCompatActivity() {
     private fun enterRoom(nickname: String, joinScreen: LinearLayout?, roomScreen: LinearLayout?) {
         joinScreen?.visibility = View.GONE
         roomScreen?.visibility = View.VISIBLE
-        Toast.makeText(this, if (isEnglish) "Entered broadcast!" else "Вы вошли в эфир!", Toast.LENGTH_SHORT).show()
-
         startBleServices(nickname)
     }
 
     private fun startBleServices(nickname: String, targetLikedUid: String = "NONE") {
         val adapter = bluetoothAdapter
         if (adapter == null || !adapter.isEnabled) {
-            Toast.makeText(this, if (isEnglish) "Turn on Bluetooth!" else "Включите Bluetooth!", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Включите Bluetooth!", Toast.LENGTH_LONG).show()
             return
         }
 
-        try {
-            // 1. Сбрасываем текущие сервисы, чтобы сбросить кэш BLE и избежать наслоений
-            stopBleServices()
+        stopBleServices()
 
-            // 2. Ограничиваем имя 6 символами, так как кириллица занимает 2 байта на символ в UTF-8
-            val safeNickname = if (nickname.length > 6) nickname.substring(0, 6) else nickname
-            val payload = "$safeNickname:$myAnonymousId:$currentStatusCode:$targetLikedUid"
-            
-            bleAdvertiser = BleAdvertiser(adapter)
-            bleAdvertiser?.startAdvertising(payload)
+        val safeNickname = if (nickname.length > 5) nickname.substring(0, 5) else nickname
+        val payloadStr = "$safeNickname:$myAnonymousId:$currentStatusCode:$targetLikedUid"
+        val payloadBytes = payloadStr.toByteArray(StandardCharsets.UTF_8)
 
-            bleScanner = BleScanner(adapter) { peer ->
-                onPeerDiscovered(peer)
+        // 1. Запуск вещания (Advertising)
+        bleAdvertiser = adapter.bluetoothLeAdvertiser
+        if (bleAdvertiser == null) {
+            Toast.makeText(this, "Ошибка: Этот телефон НЕ поддерживает BLE Передатчик!", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val settings = AdvertiseSettings.Builder()
+            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
+            .setConnectable(false)
+            .build()
+
+        val data = AdvertiseData.Builder()
+            .setIncludeDeviceName(false)
+            .addServiceData(ParcelUuid(SERVICE_UUID), payloadBytes)
+            .build()
+
+        advertiseCallback = object : AdvertiseCallback() {
+            override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
+                Log.d("BLE_TEST", "Advertising started successfully")
+                Toast.makeText(this@MainActivity, "Передатчик запущен!", Toast.LENGTH_SHORT).show()
             }
-            bleScanner?.startScanning()
+
+            override fun onStartFailure(errorCode: Int) {
+                Log.e("BLE_TEST", "Advertising failed: $errorCode")
+                Toast.makeText(this@MainActivity, "Ошибка передатчика: $errorCode", Toast.LENGTH_LONG).show()
+            }
+        }
+
+        try {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                bleAdvertiser?.startAdvertising(settings, data, advertiseCallback)
+            }
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+
+        // 2. Запуск сканирования (Scanner)
+        bleScanner = adapter.bluetoothLeScanner
+        if (bleScanner == null) {
+            Toast.makeText(this, "Ошибка: Сканер BLE недоступен", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val scanSettings = ScanSettings.Builder()
+            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .build()
+
+        scanCallback = object : ScanCallback() {
+            override fun onScanResult(callbackType: Int, result: ScanResult?) {
+                result?.let { parseScanResult(it) }
+            }
+
+            override fun onBatchScanResults(results: MutableList<ScanResult>?) {
+                results?.forEach { parseScanResult(it) }
+            }
+
+            override fun onScanFailed(errorCode: Int) {
+                Log.e("BLE_TEST", "Scan failed: $errorCode")
+            }
+        }
+
+        try {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                bleScanner?.startScan(null, scanSettings, scanCallback)
+                Toast.makeText(this, "Поиск запущен...", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun parseScanResult(result: ScanResult) {
+        val record = result.scanRecord ?: return
+        val serviceData = record.getServiceData(ParcelUuid(SERVICE_UUID)) ?: return
+
+        val payloadStr = String(serviceData, StandardCharsets.UTF_8)
+        val rssi = result.rssi
+
+        val parts = payloadStr.split(":")
+        if (parts.size >= 2) {
+            val nickname = parts[0]
+            val anonId = parts[1]
+            val status = if (parts.size >= 3) parts[2] else "GREEN"
+            val likedTargetId = if (parts.size >= 4) parts[3] else "NONE"
+
+            if (blockedUsers.contains(anonId) || anonId == myAnonymousId) return
+
+            discoveredPeers[anonId] = NearbyPeer(anonId)
+            peerNicknames[anonId] = nickname
+            peerStatuses[anonId] = status
+            lastSeenTimes[anonId] = System.currentTimeMillis()
+            peerRssiMap[anonId] = rssi
+
+            if (likedTargetId == myAnonymousId) {
+                likedMeSet.add(anonId)
+            }
+
+            scheduleUiUpdate()
         }
     }
 
@@ -283,13 +365,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopBleServices() {
         try {
-            bleScanner?.stopScanning()
-            bleAdvertiser?.stopAdvertising()
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                advertiseCallback?.let { bleAdvertiser?.stopAdvertising(it) }
+            }
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                scanCallback?.let { bleScanner?.stopScan(it) }
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         } finally {
-            bleScanner = null
+            advertiseCallback = null
+            scanCallback = null
             bleAdvertiser = null
+            bleScanner = null
         }
     }
 
@@ -337,39 +425,6 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "Необходим доступ к Bluetooth и Геолокации!", Toast.LENGTH_LONG).show()
             }
         }
-    }
-
-    private fun extractRssiSafely(peer: NearbyPeer): Int {
-        return try {
-            val field = peer.javaClass.getDeclaredField("rssi")
-            field.isAccessible = true
-            (field.get(peer) as? Int) ?: -70
-        } catch (e: Exception) {
-            -70
-        }
-    }
-
-    private fun onPeerDiscovered(peer: NearbyPeer) {
-        // Разбираем пакет: NICK : ANON_ID : STATUS : LIKED_TARGET_ID
-        val parts = peer.anonymousId.split(":")
-        val nickname = if (parts.size >= 1) parts[0] else "User"
-        val anonId = if (parts.size >= 2) parts[1] else peer.anonymousId
-        val status = if (parts.size >= 3) parts[2] else "GREEN"
-        val likedTargetId = if (parts.size >= 4) parts[3] else "NONE"
-
-        if (blockedUsers.contains(anonId)) return
-
-        discoveredPeers[anonId] = NearbyPeer(anonId)
-        peerNicknames[anonId] = nickname
-        peerStatuses[anonId] = status
-        lastSeenTimes[anonId] = System.currentTimeMillis()
-        peerRssiMap[anonId] = extractRssiSafely(peer)
-
-        if (likedTargetId == myAnonymousId) {
-            likedMeSet.add(anonId)
-        }
-
-        scheduleUiUpdate()
     }
 
     private fun startCleanupTask() {
