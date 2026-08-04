@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.*
 import android.content.Context
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -65,6 +66,8 @@ class MainActivity : AppCompatActivity() {
         showContactChoiceDialog(peer.uid)
     }
 
+    private lateinit var prefs: SharedPreferences
+
     private val uiUpdateRunnable = Runnable {
         val uiPeersList = discoveredPeers.keys.map { uid ->
             val rawName = peerNicknames[uid] ?: "User"
@@ -73,7 +76,7 @@ class MainActivity : AppCompatActivity() {
             val isLikedByMe = peerLikedMap[uid] == true
             val isLikingMe = likedMeSet.contains(uid)
             val rssi = peerRssiMap[uid] ?: -70
-            val contactInfo = peerContactsMap[uid]
+            val contactInfo = peerContactsMap[uid] ?: prefs.getString("contact_$uid", null)
 
             val statusHint = when (statusCode) {
                 "GREEN" -> if (isEnglish) "🟢 Easy to approach" else "🟢 Легко подойди"
@@ -88,16 +91,18 @@ class MainActivity : AppCompatActivity() {
                 else -> if (isEnglish) "Nearby (>5m)" else "Недалеко (>5м)"
             }
 
+            // ЛОГИКА ОТОБРАЖЕНИЯ:
+            // Лайк открывается ТОЛЬКО при взаимности!
             val displayName = when {
-                // MATCH - взаимный лайк
+                // ВЗАИМНЫЙ ЛАЙК (MATCH)
                 isLikedByMe && isLikingMe -> {
+                    saveMatchToHistory(rawName, contactInfo)
                     val contactStr = if (!contactInfo.isNullOrEmpty() && contactInfo != "NONE") "\n📱 $contactInfo" else ""
                     "🔥 MATCH! $rawName$contactStr"
                 }
-                // Меня лайкнули
-                isLikingMe -> if (isEnglish) "❤️ $rawName (Liked you!)" else "❤️ $rawName (Лайкнул вас!)"
-                // Я лайкнул
+                // Я лайкнул, но второй ЕЩЁ не лайкнул в ответ (показываем только мне)
                 isLikedByMe -> if (isEnglish) "⭐ $rawName (Liked)" else "⭐ $rawName (Отправлен лайк)"
+                // Второй лайкнул меня, но я НЕ лайкал -> Ничего не показываем! (Обычное имя)
                 else -> rawName
             }
 
@@ -107,7 +112,7 @@ class MainActivity : AppCompatActivity() {
                 uid = uid,
                 avatarLabel = fullLabel,
                 liked = isLikedByMe,
-                hasBadge = isLikingMe
+                hasBadge = isLikedByMe && isLikingMe
             )
         }
         peerAdapter.submitList(uiPeersList)
@@ -116,6 +121,8 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        prefs = getSharedPreferences("match_history_prefs", Context.MODE_PRIVATE)
 
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
         bluetoothAdapter = bluetoothManager?.adapter
@@ -152,6 +159,7 @@ class MainActivity : AppCompatActivity() {
         val ageCheck = findViewById<CheckBox?>(getLayoutResId("ageCheck"))
         val joinBtn = findViewById<Button?>(getLayoutResId("joinBtn"))
         val leaveBtn = findViewById<Button?>(getLayoutResId("leaveBtn"))
+        val historyBtn = findViewById<Button?>(getLayoutResId("historyBtn"))
         val langBtn = findViewById<Button?>(getLayoutResId("langBtn"))
 
         joinBtn?.setOnClickListener {
@@ -185,12 +193,49 @@ class MainActivity : AppCompatActivity() {
             stopBleServices()
         }
 
+        // ОБРАБОТКА КНОПКИ ИСТОРИЯ
+        historyBtn?.setOnClickListener {
+            showHistoryDialog()
+        }
+
         langBtn?.setOnClickListener {
             toggleLanguage()
         }
     }
 
-    // ВЫЗОВ ДИАЛОГА ВЫБОРА КОНТАКТОВ
+    private fun saveMatchToHistory(name: String, contact: String?) {
+        val historySet = prefs.getStringSet("matches", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+        val entry = if (!contact.isNullOrEmpty() && contact != "NONE") "$name — $contact" else name
+        if (!historySet.contains(entry)) {
+            historySet.add(entry)
+            prefs.edit().putStringSet("matches", historySet).apply()
+        }
+    }
+
+    private fun showHistoryDialog() {
+        val historySet = prefs.getStringSet("matches", emptySet()) ?: emptySet()
+        val title = if (isEnglish) "Match History" else "История совпадений"
+
+        if (historySet.isEmpty()) {
+            AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(if (isEnglish) "No matches yet." else "Совпадений пока нет.")
+                .setPositiveButton("OK", null)
+                .show()
+        } else {
+            val items = historySet.toTypedArray()
+            AlertDialog.Builder(this)
+                .setTitle(title)
+                .setItems(items, null)
+                .setPositiveButton("OK", null)
+                .setNeutralButton(if (isEnglish) "Clear" else "Очистить") { _, _ ->
+                    prefs.edit().remove("matches").apply()
+                    Toast.makeText(this, if (isEnglish) "History cleared" else "История очищена", Toast.LENGTH_SHORT).show()
+                }
+                .show()
+        }
+    }
+
     private fun showContactChoiceDialog(targetUid: String) {
         val options = mutableListOf<String>()
         val actions = mutableListOf<String>()
@@ -223,7 +268,6 @@ class MainActivity : AppCompatActivity() {
 
                 Toast.makeText(this, if (isEnglish) "Like sent!" else "Лайк отправлен!", Toast.LENGTH_SHORT).show()
                 
-                // Перезапускаем эфир с актуальным лайком и контактом
                 startBleServices(currentNickname)
                 scheduleUiUpdate()
             }
@@ -311,9 +355,9 @@ class MainActivity : AppCompatActivity() {
         stopBleServices()
 
         val safeNickname = if (nickname.length > 4) nickname.substring(0, 4) else nickname
-        val safeContact = if (contactPayload.length > 7) contactPayload.substring(0, 7) else contactPayload
+        // Полный контакт без обрезки до 7 символов!
+        val safeContact = contactPayload 
 
-        // Структура пакета: Nickname:ID:Status:LikedUID:Contact
         val payloadStr = "$safeNickname:$myAnonymousId:$currentStatusCode:$targetLikedUid:$safeContact"
         val payloadBytes = payloadStr.toByteArray(StandardCharsets.UTF_8)
 
@@ -402,11 +446,12 @@ class MainActivity : AppCompatActivity() {
             lastSeenTimes[anonId] = System.currentTimeMillis()
             peerRssiMap[anonId] = rssi
 
-            // Проверка адресата лайка
+            // Проверяем, лайкнули ли нас
             if (likedTargetId == myAnonymousId) {
                 likedMeSet.add(anonId)
                 if (contactInfo != "NONE") {
                     peerContactsMap[anonId] = contactInfo
+                    prefs.edit().putString("contact_$anonId", contactInfo).apply()
                 }
             } else {
                 likedMeSet.remove(anonId)
