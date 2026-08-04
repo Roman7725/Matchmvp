@@ -117,7 +117,7 @@ class MainActivity : AppCompatActivity() {
 
         discoveredPeers[peer.uid] = peer
 
-        // Взаимный MATCH
+        // Проверка на взаимный MATCH
         if (peer.likedTargetUid == myAnonymousId && myLikes[peer.uid] == true) {
             if (!notifiedMatches.contains(peer.uid)) {
                 notifiedMatches.add(peer.uid)
@@ -179,7 +179,7 @@ class MainActivity : AppCompatActivity() {
                 targetLikedUid = targetUid
                 myLikes[targetUid] = true
 
-                // Перезапуск трансляции с обновленным лайком
+                // Перезапуск трансляции с отправкой нового лайка
                 bleManager.start(currentNickname, myAnonymousId, currentStatusCode, targetLikedUid, contactPayload)
                 updateUiList()
             }.show()
@@ -230,7 +230,13 @@ class MainActivity : AppCompatActivity() {
         mainHandler.postDelayed(object : Runnable {
             override fun run() {
                 val now = System.currentTimeMillis()
-                discoveredPeers.entries.removeIf { now - it.value.lastSeen > 12000 }
+                val iterator = discoveredPeers.entries.iterator()
+                while (iterator.hasNext()) {
+                    val entry = iterator.next()
+                    if (now - entry.value.lastSeen > 12000) {
+                        iterator.remove()
+                    }
+                }
                 updateUiList()
                 mainHandler.postDelayed(this, 5000)
             }
