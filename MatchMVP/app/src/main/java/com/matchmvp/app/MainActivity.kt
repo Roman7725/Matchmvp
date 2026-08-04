@@ -36,9 +36,9 @@ class MainActivity : AppCompatActivity() {
     private val lastSeenTimes = ConcurrentHashMap<String, Long>()
     private val peerRssiMap = ConcurrentHashMap<String, Int>()
     
-    private val peerLikedMap = ConcurrentHashMap<String, Boolean>() // Кого лайкнул Я
-    private val likedMeSet = ConcurrentHashMap.newKeySet<String>() // Кто лайкнул МЕНЯ
-    private val peerContactsMap = ConcurrentHashMap<String, String>() // Полученные контакты
+    private val peerLikedMap = ConcurrentHashMap<String, Boolean>() 
+    private val likedMeSet = ConcurrentHashMap.newKeySet<String>() 
+    private val peerContactsMap = ConcurrentHashMap<String, String>() 
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val PERMISSION_REQUEST_CODE = 101
@@ -91,18 +91,16 @@ class MainActivity : AppCompatActivity() {
                 else -> if (isEnglish) "Nearby (>5m)" else "Недалеко (>5м)"
             }
 
-            // ЛОГИКА ОТОБРАЖЕНИЯ:
-            // Лайк открывается ТОЛЬКО при взаимности!
             val displayName = when {
-                // ВЗАИМНЫЙ ЛАЙК (MATCH)
+                // ОБОЮДНЫЙ ЛАЙК: Показываем MATCH и настоящий контакт
                 isLikedByMe && isLikingMe -> {
                     saveMatchToHistory(rawName, contactInfo)
                     val contactStr = if (!contactInfo.isNullOrEmpty() && contactInfo != "NONE") "\n📱 $contactInfo" else ""
                     "🔥 MATCH! $rawName$contactStr"
                 }
-                // Я лайкнул, но второй ЕЩЁ не лайкнул в ответ (показываем только мне)
+                // Я отправил лайк (видно только мне)
                 isLikedByMe -> if (isEnglish) "⭐ $rawName (Liked)" else "⭐ $rawName (Отправлен лайк)"
-                // Второй лайкнул меня, но я НЕ лайкал -> Ничего не показываем! (Обычное имя)
+                // Тот кто меня лайкнул отображается стандартно до моего взаимного клика
                 else -> rawName
             }
 
@@ -193,7 +191,6 @@ class MainActivity : AppCompatActivity() {
             stopBleServices()
         }
 
-        // ОБРАБОТКА КНОПКИ ИСТОРИЯ
         historyBtn?.setOnClickListener {
             showHistoryDialog()
         }
@@ -236,32 +233,29 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ИСПРАВЛЕННЫЙ ВЫБОР И ОТПРАВКА КОНТАКТА
     private fun showContactChoiceDialog(targetUid: String) {
-        val options = mutableListOf<String>()
-        val actions = mutableListOf<String>()
+        val optionsList = mutableListOf<String>()
+        val valuesList = mutableListOf<String>()
 
         if (myPhone.isNotEmpty()) {
-            options.add(if (isEnglish) "Send Phone: $myPhone" else "Отправить телефон: $myPhone")
-            actions.add("PHONE")
+            optionsList.add(if (isEnglish) "Send Phone: $myPhone" else "Отправить телефон: $myPhone")
+            valuesList.add(myPhone)
         }
         if (myEmail.isNotEmpty()) {
-            options.add(if (isEnglish) "Send Email: $myEmail" else "Отправить Email: $myEmail")
-            actions.add("EMAIL")
+            optionsList.add(if (isEnglish) "Send Email: $myEmail" else "Отправить Email: $myEmail")
+            valuesList.add(myEmail)
         }
-        options.add(if (isEnglish) "Don't send contact" else "Ничего не отправлять")
-        actions.add("NONE")
+        optionsList.add(if (isEnglish) "Don't send contact" else "Ничего не отправлять")
+        valuesList.add("NONE")
 
         val title = if (isEnglish) "Share Contact with Like?" else "Поделиться контактом с лайком?"
 
         AlertDialog.Builder(this)
             .setTitle(title)
-            .setItems(options.toTypedArray()) { _, which ->
-                val selectedAction = actions[which]
-                contactPayload = when (selectedAction) {
-                    "PHONE" -> myPhone
-                    "EMAIL" -> myEmail
-                    else -> "NONE"
-                }
+            .setItems(optionsList.toTypedArray()) { _, which ->
+                // Фиксируем реальное строковое значение Email/Телефона
+                contactPayload = valuesList[which]
 
                 peerLikedMap[targetUid] = true
                 targetLikedUid = targetUid
@@ -355,8 +349,9 @@ class MainActivity : AppCompatActivity() {
         stopBleServices()
 
         val safeNickname = if (nickname.length > 4) nickname.substring(0, 4) else nickname
-        // Полный контакт без обрезки до 7 символов!
-        val safeContact = contactPayload 
+        
+        // Ограничиваем длинные почты до 12 символов, чтобы не переполнять байтовый лимит пакета BLE
+        val safeContact = if (contactPayload.length > 12) contactPayload.substring(0, 12) else contactPayload 
 
         val payloadStr = "$safeNickname:$myAnonymousId:$currentStatusCode:$targetLikedUid:$safeContact"
         val payloadBytes = payloadStr.toByteArray(StandardCharsets.UTF_8)
@@ -446,7 +441,6 @@ class MainActivity : AppCompatActivity() {
             lastSeenTimes[anonId] = System.currentTimeMillis()
             peerRssiMap[anonId] = rssi
 
-            // Проверяем, лайкнули ли нас
             if (likedTargetId == myAnonymousId) {
                 likedMeSet.add(anonId)
                 if (contactInfo != "NONE") {
