@@ -65,7 +65,7 @@ class MainActivity : AppCompatActivity() {
         val uiPeersList = discoveredPeers.keys.map { uid ->
             val rawName = peerNicknames[uid] ?: "User"
             val statusCode = peerStatuses[uid] ?: "GREEN"
-            val isLikedByMe = peerLikedMap[uid] ?: false
+            val isLikedByMe = peerLikedMap[uid] == true
             val isLikingMe = likedMeSet.contains(uid)
             val rssi = peerRssiMap[uid] ?: -70
 
@@ -82,10 +82,13 @@ class MainActivity : AppCompatActivity() {
                 else -> if (isEnglish) "Nearby (>5m)" else "Недалеко (>5м)"
             }
 
-            // ЛОГИКА ОТОБРАЖЕНИЯ МАТЧЕЙ И ЛАЙКОВ
+            // СТРОГАЯ ЛОГИКА ОТОБРАЖЕНИЯ МАТЧА
             val displayName = when {
+                // Только когда ОБА лайкнули
                 isLikedByMe && isLikingMe -> "🔥 MATCH! $rawName"
+                // Когда его лайкнули, но он ещё не лайкнул в ответ
                 isLikingMe -> if (isEnglish) "❤️ $rawName (Liked you!)" else "❤️ $rawName (Лайкнул вас!)"
+                // Когда он сам лайкнул, но второй ещё не ответил
                 isLikedByMe -> if (isEnglish) "⭐ $rawName (Liked)" else "⭐ $rawName (Отправлен лайк)"
                 else -> rawName
             }
@@ -259,9 +262,7 @@ class MainActivity : AppCompatActivity() {
         val payloadBytes = payloadStr.toByteArray(StandardCharsets.UTF_8)
 
         bleAdvertiser = adapter.bluetoothLeAdvertiser
-        if (bleAdvertiser == null) {
-            return
-        }
+        if (bleAdvertiser == null) return
 
         val settings = AdvertiseSettings.Builder()
             .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
@@ -344,9 +345,11 @@ class MainActivity : AppCompatActivity() {
             lastSeenTimes[anonId] = System.currentTimeMillis()
             peerRssiMap[anonId] = rssi
 
-            // Проверяем, адресован ли лайк мне
+            // Если кто-то лайкнул МОЙ ID
             if (likedTargetId == myAnonymousId) {
                 likedMeSet.add(anonId)
+            } else {
+                likedMeSet.remove(anonId)
             }
 
             scheduleUiUpdate()
