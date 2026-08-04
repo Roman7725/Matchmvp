@@ -12,6 +12,9 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelUuid
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.util.Log
 import android.view.View
 import android.widget.*
@@ -24,6 +27,7 @@ import androidx.recyclerview.widget.RecyclerView
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.pow
 
 class MainActivity : AppCompatActivity() {
 
@@ -68,6 +72,34 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: SharedPreferences
 
+    // Формула перевода RSSI в расстояние (в метрах)
+    private fun calculateDistanceInMeters(rssi: Int, txPower: Int = -59): Double {
+        if (rssi == 0) return -1.0
+        val ratio = rssi * 1.0 / txPower
+        return if (ratio < 1.0) {
+            ratio.pow(10.0)
+        } else {
+            0.89976 * ratio.pow(7.7095) + 0.111
+        }
+    }
+
+    private fun triggerVibration() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                val vibrator = vibratorManager.defaultVibrator
+                vibrator.vibrate(VibrationEffect.createOneShot(400, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(400)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     private val uiUpdateRunnable = Runnable {
         val uiPeersList = discoveredPeers.keys.map { uid ->
             val rawName = peerNicknames[uid] ?: "User"
@@ -78,6 +110,9 @@ class MainActivity : AppCompatActivity() {
             val rssi = peerRssiMap[uid] ?: -70
             val contactInfo = peerContactsMap[uid] ?: prefs.getString("contact_$uid", null)
 
+            val exactMeters = calculateDistanceInMeters(rssi)
+            val formattedMeters = if (exactMeters > 0) String.format("%.1f", exactMeters) else "?"
+
             val statusHint = when (statusCode) {
                 "GREEN" -> if (isEnglish) "🟢 Easy to approach" else "🟢 Легко подойди"
                 "YELLOW" -> if (isEnglish) "🟡 Better text first" else "🟡 Лучше сначала напиши"
@@ -86,9 +121,9 @@ class MainActivity : AppCompatActivity() {
             }
 
             val distanceText = when {
-                rssi > -65 -> if (isEnglish) "Very close (~1-2m)" else "Очень близко (~1-2м)"
-                rssi > -80 -> if (isEnglish) "Close (~3-5m)" else "Близко (~3-5м)"
-                else -> if (isEnglish) "Nearby (>5m)" else "Недалеко (>5м)"
+                rssi > -65 -> if (isEnglish) "Very close (~$formattedMeters m)" else "Очень близко (~$formattedMeters м)"
+                rssi > -80 -> if (isEnglish) "Close (~$formattedMeters m)" else "Близко (~$formattedMeters м)"
+                else -> if (isEnglish) "Nearby (~$formattedMeters m)" else "Недалеко (~$formattedMeters м)"
             }
 
             val displayName = when {
@@ -233,7 +268,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ИСПРАВЛЕННЫЙ ВЫБОР И ОТПРАВКА КОНТАКТА
     private fun showContactChoiceDialog(targetUid: String) {
         val optionsList = mutableListOf<String>()
         val valuesList = mutableListOf<String>()
@@ -254,7 +288,6 @@ class MainActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle(title)
             .setItems(optionsList.toTypedArray()) { _, which ->
-                // Фиксируем реальное строковое значение Email/Телефона
                 contactPayload = valuesList[which]
 
                 peerLikedMap[targetUid] = true
@@ -349,8 +382,6 @@ class MainActivity : AppCompatActivity() {
         stopBleServices()
 
         val safeNickname = if (nickname.length > 4) nickname.substring(0, 4) else nickname
-        
-        // Ограничиваем длинные почты до 12 символов, чтобы не переполнять байтовый лимит пакета BLE
         val safeContact = if (contactPayload.length > 12) contactPayload.substring(0, 12) else contactPayload 
 
         val payloadStr = "$safeNickname:$myAnonymousId:$currentStatusCode:$targetLikedUid:$safeContact"
@@ -442,10 +473,17 @@ class MainActivity : AppCompatActivity() {
             peerRssiMap[anonId] = rssi
 
             if (likedTargetId == myAnonymousId) {
+                val isNewMatch = !likedMeSet.contains(anonId)
                 likedMeSet.add(anonId)
+                
                 if (contactInfo != "NONE") {
                     peerContactsMap[anonId] = contactInfo
                     prefs.edit().putString("contact_$anonId", contactInfo).apply()
+                }
+
+                // Вибрируем при первом обнаружении взаимного лайка
+                if (isNewMatch && peerLikedMap[anonId] == true) {
+                    triggerVibration()
                 }
             } else {
                 likedMeSet.remove(anonId)
