@@ -37,7 +37,7 @@ class MainActivity : AppCompatActivity() {
     
     private val peerLikedMap = ConcurrentHashMap<String, Boolean>() // Кого лайкнул Я
     private val likedMeSet = ConcurrentHashMap.newKeySet<String>() // Кто лайкнул МЕНЯ
-    private val peerContactsMap = ConcurrentHashMap<String, String>() // Полученные контакты пользователей
+    private val peerContactsMap = ConcurrentHashMap<String, String>() // Полученные контакты
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val PERMISSION_REQUEST_CODE = 101
@@ -58,7 +58,8 @@ class MainActivity : AppCompatActivity() {
     private var advertiseCallback: AdvertiseCallback? = null
     private var scanCallback: ScanCallback? = null
 
-    private var myAnonymousId: String = UUID.randomUUID().toString().substring(0, 6)
+    // Сокращаем свой ID до 4 символов ради экономии байтов BLE
+    private var myAnonymousId: String = UUID.randomUUID().toString().substring(0, 4)
 
     private var recyclerView: RecyclerView? = null
     private val peerAdapter = PeerAdapter { peer ->
@@ -87,7 +88,7 @@ class MainActivity : AppCompatActivity() {
                 else -> if (isEnglish) "Nearby (>5m)" else "Недалеко (>5м)"
             }
 
-            // СТРОГАЯ ЛОГИКА МАТЧА
+            // ЖЁСТКАЯ ПРОВЕРКА МАТЧА
             val displayName = when {
                 isLikedByMe && isLikingMe -> {
                     val contactStr = if (!contactInfo.isNullOrEmpty() && contactInfo != "NONE") "\n📱 $contactInfo" else ""
@@ -187,7 +188,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ДИАЛОГ ВЫБОРА КОНТАКТА ДЛЯ ОТПРАВКИ
     private fun showContactChoiceDialog(targetUid: String) {
         val options = mutableListOf<String>()
         val actions = mutableListOf<String>()
@@ -305,10 +305,10 @@ class MainActivity : AppCompatActivity() {
 
         stopBleServices()
 
+        // Сверхкомпактная подгонка под жесткий лимит BLE в 31 байт!
         val safeNickname = if (nickname.length > 4) nickname.substring(0, 4) else nickname
-        val safeContact = if (contactData.length > 8) contactData.substring(0, 8) else contactData
+        val safeContact = if (contactData.length > 7) contactData.substring(0, 7) else contactData
 
-        // Формат пакета: Nick:ID:Status:LikedTargetId:Contact
         val payloadStr = "$safeNickname:$myAnonymousId:$currentStatusCode:$targetLikedUid:$safeContact"
         val payloadBytes = payloadStr.toByteArray(StandardCharsets.UTF_8)
 
@@ -328,7 +328,7 @@ class MainActivity : AppCompatActivity() {
 
         advertiseCallback = object : AdvertiseCallback() {
             override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
-                Log.d("BLE_TEST", "Advertising started successfully")
+                Log.d("BLE_TEST", "Advertising started")
             }
 
             override fun onStartFailure(errorCode: Int) {
@@ -397,7 +397,6 @@ class MainActivity : AppCompatActivity() {
             lastSeenTimes[anonId] = System.currentTimeMillis()
             peerRssiMap[anonId] = rssi
 
-            // Проверка: лайкнули ли именно МЕНЯ
             if (likedTargetId == myAnonymousId) {
                 likedMeSet.add(anonId)
                 if (contactInfo != "NONE") {
