@@ -14,6 +14,7 @@ import android.os.ParcelUuid
 import android.util.Log
 import android.view.View
 import android.widget.*
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -36,6 +37,7 @@ class MainActivity : AppCompatActivity() {
     
     private val peerLikedMap = ConcurrentHashMap<String, Boolean>() // Кого лайкнул Я
     private val likedMeSet = ConcurrentHashMap.newKeySet<String>() // Кто лайкнул МЕНЯ
+    private val peerContactsMap = ConcurrentHashMap<String, String>() // Полученные контакты пользователей
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val PERMISSION_REQUEST_CODE = 101
@@ -43,6 +45,11 @@ class MainActivity : AppCompatActivity() {
     private var isEnglish = false
     private var currentNickname = ""
     private var currentStatusCode = "GREEN"
+    private var myPhone = ""
+    private var myEmail = ""
+
+    private var currentTargetLikedUid = "NONE"
+    private var currentContactPayload = "NONE"
 
     private var bluetoothAdapter: BluetoothAdapter? = null
     private var bleAdvertiser: BluetoothLeAdvertiser? = null
@@ -55,10 +62,7 @@ class MainActivity : AppCompatActivity() {
 
     private var recyclerView: RecyclerView? = null
     private val peerAdapter = PeerAdapter { peer ->
-        peerLikedMap[peer.uid] = true
-        Toast.makeText(this, if (isEnglish) "Like sent!" else "Лайк отправлен!", Toast.LENGTH_SHORT).show()
-        restartAdvertisingWithLike(peer.uid)
-        scheduleUiUpdate()
+        showContactChoiceDialog(peer.uid)
     }
 
     private val uiUpdateRunnable = Runnable {
@@ -68,6 +72,7 @@ class MainActivity : AppCompatActivity() {
             val isLikedByMe = peerLikedMap[uid] == true
             val isLikingMe = likedMeSet.contains(uid)
             val rssi = peerRssiMap[uid] ?: -70
+            val contactInfo = peerContactsMap[uid]
 
             val statusHint = when (statusCode) {
                 "GREEN" -> if (isEnglish) "🟢 Easy to approach" else "🟢 Легко подойди"
@@ -82,13 +87,13 @@ class MainActivity : AppCompatActivity() {
                 else -> if (isEnglish) "Nearby (>5m)" else "Недалеко (>5м)"
             }
 
-            // СТРОГАЯ ЛОГИКА ОТОБРАЖЕНИЯ МАТЧА
+            // СТРОГАЯ ЛОГИКА МАТЧА
             val displayName = when {
-                // Только когда ОБА лайкнули
-                isLikedByMe && isLikingMe -> "🔥 MATCH! $rawName"
-                // Когда его лайкнули, но он ещё не лайкнул в ответ
+                isLikedByMe && isLikingMe -> {
+                    val contactStr = if (!contactInfo.isNullOrEmpty() && contactInfo != "NONE") "\n📱 $contactInfo" else ""
+                    "🔥 MATCH! $rawName$contactStr"
+                }
                 isLikingMe -> if (isEnglish) "❤️ $rawName (Liked you!)" else "❤️ $rawName (Лайкнул вас!)"
-                // Когда он сам лайкнул, но второй ещё не ответил
                 isLikedByMe -> if (isEnglish) "⭐ $rawName (Liked)" else "⭐ $rawName (Отправлен лайк)"
                 else -> rawName
             }
@@ -139,6 +144,8 @@ class MainActivity : AppCompatActivity() {
         val roomScreen = findViewById<LinearLayout?>(getLayoutResId("roomScreen"))
 
         val nicknameInput = findViewById<EditText?>(getLayoutResId("nicknameInput"))
+        val phoneInput = findViewById<EditText?>(getLayoutResId("phoneInput"))
+        val emailInput = findViewById<EditText?>(getLayoutResId("emailInput"))
         val ageCheck = findViewById<CheckBox?>(getLayoutResId("ageCheck"))
         val joinBtn = findViewById<Button?>(getLayoutResId("joinBtn"))
         val leaveBtn = findViewById<Button?>(getLayoutResId("leaveBtn"))
@@ -146,6 +153,8 @@ class MainActivity : AppCompatActivity() {
 
         joinBtn?.setOnClickListener {
             val nickname = nicknameInput?.text?.toString()?.trim().orEmpty()
+            myPhone = phoneInput?.text?.toString()?.trim().orEmpty()
+            myEmail = emailInput?.text?.toString()?.trim().orEmpty()
 
             if (nickname.isEmpty()) {
                 Toast.makeText(this, if (isEnglish) "Enter nickname!" else "Введите имя!", Toast.LENGTH_SHORT).show()
@@ -176,6 +185,45 @@ class MainActivity : AppCompatActivity() {
         langBtn?.setOnClickListener {
             toggleLanguage()
         }
+    }
+
+    // ДИАЛОГ ВЫБОРА КОНТАКТА ДЛЯ ОТПРАВКИ
+    private fun showContactChoiceDialog(targetUid: String) {
+        val options = mutableListOf<String>()
+        val actions = mutableListOf<String>()
+
+        if (myPhone.isNotEmpty()) {
+            options.add(if (isEnglish) "Send Phone: $myPhone" else "Отправить телефон: $myPhone")
+            actions.add("PHONE")
+        }
+        if (myEmail.isNotEmpty()) {
+            options.add(if (isEnglish) "Send Email: $myEmail" else "Отправить Email: $myEmail")
+            actions.add("EMAIL")
+        }
+        options.add(if (isEnglish) "Don't send contact" else "Ничего не отправлять")
+        actions.add("NONE")
+
+        val title = if (isEnglish) "Share Contact with Like?" else "Поделиться контактом с лайком?"
+
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(options.toTypedArray()) { _, which ->
+                val selectedAction = actions[which]
+                currentContactPayload = when (selectedAction) {
+                    "PHONE" -> myPhone
+                    "EMAIL" -> myEmail
+                    else -> "NONE"
+                }
+
+                peerLikedMap[targetUid] = true
+                currentTargetLikedUid = targetUid
+
+                Toast.makeText(this, if (isEnglish) "Like sent!" else "Лайк отправлен!", Toast.LENGTH_SHORT).show()
+                restartAdvertisingWithLike(targetUid, currentContactPayload)
+                scheduleUiUpdate()
+            }
+            .setNegativeButton(if (isEnglish) "Cancel" else "Отмена", null)
+            .show()
     }
 
     private fun getSelectedStatusCode(): String {
@@ -248,7 +296,7 @@ class MainActivity : AppCompatActivity() {
         startBleServices(nickname)
     }
 
-    private fun startBleServices(nickname: String, targetLikedUid: String = "NONE") {
+    private fun startBleServices(nickname: String, targetLikedUid: String = "NONE", contactData: String = "NONE") {
         val adapter = bluetoothAdapter
         if (adapter == null || !adapter.isEnabled) {
             Toast.makeText(this, if (isEnglish) "Turn on Bluetooth!" else "Включите Bluetooth!", Toast.LENGTH_LONG).show()
@@ -257,8 +305,11 @@ class MainActivity : AppCompatActivity() {
 
         stopBleServices()
 
-        val safeNickname = if (nickname.length > 5) nickname.substring(0, 5) else nickname
-        val payloadStr = "$safeNickname:$myAnonymousId:$currentStatusCode:$targetLikedUid"
+        val safeNickname = if (nickname.length > 4) nickname.substring(0, 4) else nickname
+        val safeContact = if (contactData.length > 8) contactData.substring(0, 8) else contactData
+
+        // Формат пакета: Nick:ID:Status:LikedTargetId:Contact
+        val payloadStr = "$safeNickname:$myAnonymousId:$currentStatusCode:$targetLikedUid:$safeContact"
         val payloadBytes = payloadStr.toByteArray(StandardCharsets.UTF_8)
 
         bleAdvertiser = adapter.bluetoothLeAdvertiser
@@ -336,6 +387,7 @@ class MainActivity : AppCompatActivity() {
             val anonId = parts[1]
             val status = if (parts.size >= 3) parts[2] else "GREEN"
             val likedTargetId = if (parts.size >= 4) parts[3] else "NONE"
+            val contactInfo = if (parts.size >= 5) parts[4] else "NONE"
 
             if (blockedUsers.contains(anonId) || anonId == myAnonymousId) return
 
@@ -345,9 +397,12 @@ class MainActivity : AppCompatActivity() {
             lastSeenTimes[anonId] = System.currentTimeMillis()
             peerRssiMap[anonId] = rssi
 
-            // Если кто-то лайкнул МОЙ ID
+            // Проверка: лайкнули ли именно МЕНЯ
             if (likedTargetId == myAnonymousId) {
                 likedMeSet.add(anonId)
+                if (contactInfo != "NONE") {
+                    peerContactsMap[anonId] = contactInfo
+                }
             } else {
                 likedMeSet.remove(anonId)
             }
@@ -356,8 +411,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun restartAdvertisingWithLike(targetLikedUid: String) {
-        startBleServices(currentNickname, targetLikedUid)
+    private fun restartAdvertisingWithLike(targetLikedUid: String, contactData: String) {
+        startBleServices(currentNickname, targetLikedUid, contactData)
     }
 
     private fun stopBleServices() {
@@ -439,6 +494,7 @@ class MainActivity : AppCompatActivity() {
                         peerRssiMap.remove(entry.key)
                         peerLikedMap.remove(entry.key)
                         likedMeSet.remove(entry.key)
+                        peerContactsMap.remove(entry.key)
                         iterator.remove()
                     }
                 }
