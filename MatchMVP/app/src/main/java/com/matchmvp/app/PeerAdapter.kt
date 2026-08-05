@@ -32,6 +32,7 @@ class PeerAdapter(
     override fun getItemCount(): Int = items.size
 
     inner class PeerViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        // Используем id "avatarText", который задан в item_peer.xml
         private val avatarText: TextView = itemView.findViewById(R.id.avatarText)
         private val likeBtn: Button = itemView.findViewById(R.id.likeBtn)
 
