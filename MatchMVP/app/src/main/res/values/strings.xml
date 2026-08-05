@@ -1,30 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Match MVP</string>
-
-    <!-- Экран входа -->
-    <string name="nickname_hint">Твой никнейм</string>
-    <string name="phone_hint">Твой номер телефона (раскроется только при мэтче)</string>
-    <string name="age_check_label">Мне есть 18 лет</string>
-    <string name="badge_check_label">Показывать значок сообщества (виден только тем, у кого он тоже включён)</string>
-    <string name="join_button">Войти в эфир</string>
+    <string name="app_name">MatchMVP</string>
+    <string name="nickname_hint">Enter nickname</string>
+    <string name="phone_hint">Enter phone number</string>
+    <string name="age_check_label">I am 18 or older</string>
+    <string name="badge_check_label">Show community badge</string>
+    <string name="join_button">Join broadcast</string>
 
     <!-- Экран "кто рядом" -->
-    <string name="nearby_title">Кто рядом</string>
+    <string name="nearby_title">People Nearby</string>
 
     <!-- Диалоги -->
-    <string name="permissions_needed_title">Нужны разрешения</string>
-    <string name="permissions_needed_message">Без Bluetooth-разрешений приложение не может находить людей рядом.</string>
-    <string name="ok_button">Ок</string>
-    <string name="missing_fields_message">Введи никнейм, номер телефона и подтверди, что тебе есть 18 лет.</string>
-    <string name="match_title">Взаимная симпатия!</string>
-    <string name="match_message">Хочешь показать свой номер телефона?</string>
-    <string name="yes_button">Да</string>
-    <string name="not_now_button">Не сейчас</string>
-    <string name="their_phone_format">Его/её номер: %1$s 🎉</string>
+    <string name="permissions_needed_title">Permissions needed</string>
+    <string name="permissions_needed_message">Without Bluetooth permissions, the app cannot find nearby people.</string>
+    <string name="ok_button">OK</string>
+    <string name="missing_fields_message">Enter nickname, phone number and confirm that you are 18+.</string>
+    <string name="match_title">It\'s a Match!</string>
+    <string name="match_message">Do you want to share your phone number?</string>
+    <string name="yes_button">Yes</string>
+    <string name="not_now_button">Not now</string>
+    <string name="their_phone_format">Phone number: %1$s</string>
 
-    <!-- Значок сообщества в списке -->
+    <!-- Значок сообщества и кнопки -->
     <string name="badge_prefix">🏳️‍🌈</string>
     <string name="like_button">♥</string>
-    <string name="liked_button">♥ Понравился</string>
+    <string name="liked_button">♥ Liked</string>
+    <string name="btn_like">❤️ Like</string>
+    <string name="btn_liked">⭐ Liked</string>
+    <string name="btn_match">🔥 MATCH</string>
 </resources>
