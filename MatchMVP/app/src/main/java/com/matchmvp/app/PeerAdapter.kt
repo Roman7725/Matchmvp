@@ -32,18 +32,23 @@ class PeerAdapter(
     override fun getItemCount(): Int = items.size
 
     inner class PeerViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        // Здесь используем точный ID из вашего item_peer.xml: avatarText
         private val avatarText: TextView = itemView.findViewById(R.id.avatarText)
         private val likeBtn: Button = itemView.findViewById(R.id.likeBtn)
 
         fun bind(peer: UiPeer) {
             avatarText.text = peer.avatarLabel
 
+            val context = itemView.context
+
             if (peer.liked) {
-                likeBtn.text = if (peer.hasBadge) "🔥 MATCH" else "⭐ Лайкнуто"
+                likeBtn.text = if (peer.hasBadge) {
+                    context.getString(R.string.btn_match)
+                } else {
+                    context.getString(R.string.btn_liked)
+                }
                 likeBtn.isEnabled = false
             } else {
-                likeBtn.text = "❤️ Лайк"
+                likeBtn.text = context.getString(R.string.btn_like)
                 likeBtn.isEnabled = true
                 likeBtn.setOnClickListener { onLikeClick(peer) }
             }
