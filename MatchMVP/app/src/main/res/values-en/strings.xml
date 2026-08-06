@@ -46,5 +46,7 @@
     <string name="distance_m_format">%1$.1fm</string>
 
     <string name="lang_toast_ru">Установлен русский язык</string>
-    <string name="lang_toast_en">English language set</string>
+    <string name="lang_toast_en">English language set</string><string name="btn_like">Like</string>
+    <string name="btn_liked">Liked</string>
+    <string name="btn_match">It\'s a Match! 🎉</string>
 </resources>
