@@ -1,31 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MatchMVP</string>
-    <string name="nickname_hint">Enter nickname</string>
-    <string name="phone_hint">Enter phone number</string>
-    <string name="age_check_label">I am 18 or older</string>
-    <string name="badge_check_label">Show community badge</string>
-    <string name="join_button">Join broadcast</string>
+    <string name="title_app">MATCH MVP</string>
+    <string name="lang_toggle_button">EN / RU</string>
 
-    <!-- Экран "кто рядом" -->
-    <string name="nearby_title">People Nearby</string>
+    <string name="nickname_hint">Имя</string>
+    <string name="status_label">Твой статус:</string>
+    <string name="status_green">🟢 Легко подойди</string>
+    <string name="status_yellow">🟡 Лучше сначала напиши</string>
+    <string name="status_red">🔴 Пока только наблюдаю</string>
+    <string name="phone_hint">Телефон</string>
+    <string name="email_hint">Email (опционально)</string>
+    <string name="age_check_label">Мне есть 18 лет</string>
+    <string name="join_button">ВОЙТИ В ЭФИР</string>
+    <string name="missing_fields_toast">Заполните имя и подтвердите возраст 18+</string>
 
-    <!-- Диалоги -->
-    <string name="permissions_needed_title">Permissions needed</string>
-    <string name="permissions_needed_message">Without Bluetooth permissions, the app cannot find nearby people.</string>
+    <string name="nearby_title">Кто рядом</string>
+    <string name="history_button">История</string>
+    <string name="leave_button">Выйти</string>
+    <string name="radar_searching">Поиск участников рядом…</string>
+
+    <string name="contact_dialog_title">Поделиться контактом при совпадении?</string>
+    <string name="contact_option_phone">Телефон: %1$s</string>
+    <string name="contact_option_email">Email: %1$s</string>
+    <string name="contact_option_none">Без контакта</string>
+
+    <string name="match_dialog_title">🎉 ВЗАИМНОЕ СОВПАДЕНИЕ!</string>
+    <string name="match_dialog_message">Вы и %1$s понравились друг другу!</string>
+    <string name="match_dialog_contact">Контакт: %1$s</string>
+    <string name="match_dialog_no_contact">Без контакта</string>
     <string name="ok_button">OK</string>
-    <string name="missing_fields_message">Enter nickname, phone number and confirm that you are 18+.</string>
-    <string name="match_title">It\'s a Match!</string>
-    <string name="match_message">Do you want to share your phone number?</string>
-    <string name="yes_button">Yes</string>
-    <string name="not_now_button">Not now</string>
-    <string name="their_phone_format">Phone number: %1$s</string>
 
-    <!-- Значок сообщества и кнопки -->
-    <string name="badge_prefix">🏳️‍🌈</string>
-    <string name="like_button">♥</string>
-    <string name="liked_button">♥ Liked</string>
-    <string name="btn_like">❤️ Like</string>
-    <string name="btn_liked">⭐ Liked</string>
-    <string name="btn_match">🔥 MATCH</string>
+    <string name="history_title">История совпадений</string>
+    <string name="history_empty">История совпадений пуста</string>
+    <string name="history_clear_button">Очистить</string>
+
+    <string name="status_hint_green">🟢 Легко подойди</string>
+    <string name="status_hint_yellow">🟡 Напиши сначала</string>
+    <string name="status_hint_red">🔴 Наблюдаю</string>
+
+    <string name="peer_match_prefix">🔥 MATCH! %1$s</string>
+    <string name="peer_liked_suffix">⭐ %1$s (Лайк отправлен)</string>
+
+    <string name="distance_cm_format">%1$dсм</string>
+    <string name="distance_m_format">%1$.1fm</string>
+
+    <string name="lang_toast_ru">Установлен русский язык</string>
+    <string name="lang_toast_en">English language set</string>
 </resources>
