@@ -1,278 +1,333 @@
 package com.matchmvp.app
 
 import android.Manifest
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothManager
-import android.bluetooth.le.*
 import android.content.Context
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
-import android.os.ParcelUuid
-import android.widget.Button
-import android.widget.CheckBox
-import android.widget.EditText
-import android.widget.Toast
+import android.os.Handler
+import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.view.View
+import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import java.nio.ByteBuffer
-import java.util.*
+import java.util.Locale
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.pow
 
 class MainActivity : AppCompatActivity() {
 
-    private val SERVICE_UUID = UUID.fromString("0000180D-0000-1000-8000-00805f9b34fb")
+    private val myAnonymousId: String = UUID.randomUUID().toString().substring(0, 4)
+    private var currentNickname = ""
+    private var currentStatusCode = "GREEN"
+    private var myPhone = ""
+    private var myEmail = ""
+    private var targetLikedUid = "NONE"
+    private var contactPayload = "NONE"
+
+    private val discoveredPeers = ConcurrentHashMap<String, NearbyPeer>()
+    private val myLikes = ConcurrentHashMap<String, Boolean>()
+    private val notifiedMatches = HashSet<String>()
+
+    private lateinit var bleManager: BleManager
+    private lateinit var historyManager: HistoryManager
+
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val PERMISSION_REQUEST_CODE = 101
 
-    private lateinit var nicknameInput: EditText
-    private lateinit var phoneInput: EditText
-    private lateinit var ageCheck: CheckBox
-    private lateinit var badgeCheck: CheckBox
-    private lateinit var joinBtn: Button
-    private lateinit var langBtn: Button
-    private lateinit var peersRecyclerView: RecyclerView
+    private var recyclerView: RecyclerView? = null
+    private val peerAdapter = PeerAdapter { peer -> showContactChoiceDialog(peer.uid) }
 
-    private lateinit var peerAdapter: PeerAdapter
-    private val peerList = mutableListOf<UiPeer>()
+    override fun attachBaseContext(newBase: Context) {
+        val prefs = newBase.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val langCode = prefs.getString(KEY_LANG, defaultLangCode()) ?: defaultLangCode()
+        super.attachBaseContext(applyLocale(newBase, langCode))
+    }
 
-    private var bluetoothAdapter: BluetoothAdapter? = null
-    private var bleAdvertiser: BluetoothLeAdvertiser? = null
-    private var bleScanner: BluetoothLeScanner? = null
+    private fun defaultLangCode(): String {
+        return if (Locale.getDefault().language == "ru") "ru" else "en"
+    }
 
-    private var isBroadcasting = false
-    private var myShortId: Short = (1000..9999).random().toShort()
+    private fun applyLocale(context: Context, langCode: String): Context {
+        val locale = Locale(langCode)
+        Locale.setDefault(locale)
+        val config = Configuration(context.resources.configuration)
+        config.setLocale(locale)
+        return context.createConfigurationContext(config)
+    }
+
+    private fun currentLangCode(): String {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_LANG, defaultLangCode()) ?: defaultLangCode()
+    }
+
+    private fun toggleLanguage() {
+        val newLang = if (currentLangCode() == "ru") "en" else "ru"
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putString(KEY_LANG, newLang).apply()
+
+        Toast.makeText(
+            this,
+            if (newLang == "en") getString(R.string.lang_toast_en) else getString(R.string.lang_toast_ru),
+            Toast.LENGTH_SHORT
+        ).show()
+
+        recreate()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        initViews()
-        setupBluetooth()
-        checkPermissions()
-    }
+        historyManager = HistoryManager(this)
+        bleManager = BleManager(this) { peer -> onPeerDiscovered(peer) }
 
-    private fun initViews() {
-        nicknameInput = findViewById(R.id.nicknameInput)
-        phoneInput = findViewById(R.id.phoneInput)
-        ageCheck = findViewById(R.id.ageCheck)
-        badgeCheck = findViewById(R.id.badgeCheck)
-        joinBtn = findViewById(R.id.joinBtn)
-        langBtn = findViewById(R.id.langBtn)
-        peersRecyclerView = findViewById(R.id.peersRecyclerView)
+        val rvId = resources.getIdentifier("recyclerView", "id", packageName)
+            .takeIf { it != 0 } ?: resources.getIdentifier("peersRecyclerView", "id", packageName)
 
-        peerAdapter = PeerAdapter { peer ->
-            onPeerLiked(peer)
+        if (rvId != 0) {
+            recyclerView = findViewById(rvId)
+            recyclerView?.layoutManager = LinearLayoutManager(this)
+            recyclerView?.adapter = peerAdapter
         }
 
-        peersRecyclerView.layoutManager = LinearLayoutManager(this)
-        peersRecyclerView.adapter = peerAdapter
+        setupUI()
+        startCleanupTask()
+    }
 
-        joinBtn.setOnClickListener {
-            if (validateInputs()) {
-                toggleBroadcast()
+    private fun setupUI() {
+        val joinBtn = findViewById<Button?>(resources.getIdentifier("joinBtn", "id", packageName))
+        val leaveBtn = findViewById<Button?>(resources.getIdentifier("leaveBtn", "id", packageName))
+        val historyBtn = findViewById<Button?>(resources.getIdentifier("historyBtn", "id", packageName))
+        val langBtn = findViewById<Button?>(resources.getIdentifier("langBtn", "id", packageName))
+
+        joinBtn?.setOnClickListener {
+            val nickInput = findViewById<EditText?>(resources.getIdentifier("nicknameInput", "id", packageName))
+            val phoneInput = findViewById<EditText?>(resources.getIdentifier("phoneInput", "id", packageName))
+            val emailInput = findViewById<EditText?>(resources.getIdentifier("emailInput", "id", packageName))
+            val ageCheck = findViewById<CheckBox?>(resources.getIdentifier("ageCheck", "id", packageName))
+
+            val nick = nickInput?.text?.toString()?.trim().orEmpty()
+            if (nick.isEmpty() || ageCheck?.isChecked != true) {
+                Toast.makeText(this, getString(R.string.missing_fields_toast), Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            currentNickname = nick
+            myPhone = phoneInput?.text?.toString()?.trim().orEmpty()
+            myEmail = emailInput?.text?.toString()?.trim().orEmpty()
+            currentStatusCode = getSelectedStatusCode()
+
+            if (hasPermissions()) {
+                enterRoom()
+            } else {
+                requestPermissions()
             }
         }
 
-        langBtn.setOnClickListener {
-            toggleLanguage()
-        }
-    }
-
-    private fun setupBluetooth() {
-        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-        bluetoothAdapter = bluetoothManager.adapter
-        bleAdvertiser = bluetoothAdapter?.bluetoothLeAdvertiser
-        bleScanner = bluetoothAdapter?.bluetoothLeScanner
-    }
-
-    private fun validateInputs(): Boolean {
-        if (nicknameInput.text.isBlank() || phoneInput.text.isBlank() || !ageCheck.isChecked) {
-            Toast.makeText(this, getString(R.string.missing_fields_message), Toast.LENGTH_SHORT).show()
-            return false
-        }
-        return true
-    }
-
-    // --- 1. ПЕРЕКЛЮЧЕНИЕ ЯЗЫКА С RECREATE ---
-    private fun toggleLanguage() {
-        val currentLocale = resources.configuration.locales.get(0).language
-        val newLanguage = if (currentLocale == "en") "ru" else "en"
-
-        val locale = Locale(newLanguage)
-        Locale.setDefault(locale)
-
-        val config = resources.configuration
-        config.setLocale(locale)
-        resources.updateConfiguration(config, resources.displayMetrics)
-
-        Toast.makeText(this, getString(R.string.msg_lang_changed), Toast.LENGTH_SHORT).show()
-        recreate() // Полная перезагрузка UI для смены языка
-    }
-
-    // --- 2. СЖАТИЕ BLE ПАКЕТА (КОМПАКТНЫЙ PAYLOAD ДО 5 БАЙТ) ---
-    private fun buildCompactPayload(senderId: Short, statusByte: Byte, targetId: Short): ByteArray {
-        val buffer = ByteBuffer.allocate(5)
-        buffer.putShort(senderId)     // 2 байта ID
-        buffer.put(statusByte)        // 1 байт Статус
-        buffer.putShort(targetId)     // 2 байта Target ID
-        return buffer.array()
-    }
-
-    private fun toggleBroadcast() {
-        if (!isBroadcasting) {
-            startAdvertising()
-            startScanning()
-            joinBtn.text = "Stop"
-            isBroadcasting = true
-        } else {
-            stopAdvertising()
-            stopScanning()
-            joinBtn.text = getString(R.string.join_button)
-            isBroadcasting = false
-        }
-    }
-
-    private fun startAdvertising() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) return
-
-        val settings = AdvertiseSettings.Builder()
-            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
-            .setConnectable(true)
-            .build()
-
-        // Сжатый payload
-        val payload = buildCompactPayload(myShortId, 0x01, 0x00)
-
-        val data = AdvertiseData.Builder()
-            .setIncludeDeviceName(false) // КРИТИЧНО: Экономит до 15 байт в пакете!
-            .addServiceData(ParcelUuid(SERVICE_UUID), payload)
-            .build()
-
-        bleAdvertiser?.startAdvertising(settings, data, advertiseCallback)
-    }
-
-    private fun stopAdvertising() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED) {
-            bleAdvertiser?.stopAdvertising(advertiseCallback)
-        }
-    }
-
-    private val advertiseCallback = object : AdvertiseCallback() {
-        override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
-            super.onStartSuccess(settingsInEffect)
+        leaveBtn?.setOnClickListener {
+            findViewById<View?>(resources.getIdentifier("roomScreen", "id", packageName))?.visibility = View.GONE
+            findViewById<View?>(resources.getIdentifier("joinScreen", "id", packageName))?.visibility = View.VISIBLE
+            bleManager.stop()
         }
 
-        override fun onStartFailure(errorCode: Int) {
-            super.onStartFailure(errorCode)
-            Toast.makeText(this@MainActivity, getString(R.string.err_ble_too_large), Toast.LENGTH_SHORT).show()
-        }
+        historyBtn?.setOnClickListener { showHistoryDialog() }
+        langBtn?.setOnClickListener { toggleLanguage() }
     }
 
-    private fun startScanning() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) return
-
-        val filter = ScanFilter.Builder()
-            .setServiceUuid(ParcelUuid(SERVICE_UUID))
-            .build()
-
-        val settings = ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-            .build()
-
-        bleScanner?.startScan(listOf(filter), settings, scanCallback)
+    private fun enterRoom() {
+        findViewById<View?>(resources.getIdentifier("joinScreen", "id", packageName))?.visibility = View.GONE
+        findViewById<View?>(resources.getIdentifier("roomScreen", "id", packageName))?.visibility = View.VISIBLE
+        bleManager.start(currentNickname, myAnonymousId, currentStatusCode, targetLikedUid, contactPayload)
     }
 
-    private fun stopScanning() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED) {
-            bleScanner?.stopScan(scanCallback)
-        }
-    }
+    private fun onPeerDiscovered(peer: NearbyPeer) {
+        if (peer.uid == myAnonymousId) return
 
-    private val scanCallback = object : ScanCallback() {
-        override fun onScanResult(callbackType: Int, result: ScanResult) {
-            val scanRecord = result.scanRecord ?: return
-            val rawData = scanRecord.getServiceData(ParcelUuid(SERVICE_UUID)) ?: return
+        discoveredPeers[peer.uid] = peer
 
-            if (rawData.size >= 5) {
-                val buffer = ByteBuffer.wrap(rawData)
-                val senderId = buffer.short
-                val statusByte = buffer.get()
-                val targetId = buffer.short
+        if (peer.likedTargetUid == myAnonymousId && myLikes[peer.uid] == true) {
+            if (!notifiedMatches.contains(peer.uid)) {
+                notifiedMatches.add(peer.uid)
+                triggerVibration()
+                historyManager.saveMatch(peer.nickname, peer.contactInfo)
 
-                val peerName = "User_$senderId"
-                val distanceMeters = calculateDistance(result.rssi)
-
-                runOnUiThread {
-                    updatePeerInList(senderId, peerName, distanceMeters, statusByte)
+                mainHandler.post {
+                    showMatchDialog(peer.nickname, peer.contactInfo)
                 }
             }
         }
+        updateUiList()
     }
 
-    private fun calculateDistance(rssi: Int): String {
-        val txPower = -59
-        if (rssi == 0) return "📍 ?"
-        val ratio = rssi * 1.0 / txPower
-        return if (ratio < 1.0) {
-            String.format(Locale.US, "📍 %.1fm", Math.pow(ratio, 10.0))
-        } else {
-            val dist = (0.89976) * Math.pow(ratio, 7.7095) + 0.111
-            String.format(Locale.US, "📍 %.1fm", dist)
-        }
-    }
+    private fun updateUiList() {
+        mainHandler.post {
+            val uiList = discoveredPeers.values.map { peer ->
+                val isLikedByMe = myLikes[peer.uid] == true
+                val isLikingMe = peer.likedTargetUid == myAnonymousId
 
-    private fun updatePeerInList(id: Short, name: String, distance: String, status: Byte) {
-        val existingIndex = peerList.indexOfFirst { it.id == id.toInt() }
-        val label = "$name ($distance)"
+                val distMeters = calculateDistance(peer.rssi)
+                val distStr = if (distMeters < 1.0) {
+                    getString(R.string.distance_cm_format, (distMeters * 100).toInt())
+                } else {
+                    getString(R.string.distance_m_format, distMeters)
+                }
 
-        if (existingIndex != -1) {
-            val existing = peerList[existingIndex]
-            peerList[existingIndex] = existing.copy(avatarLabel = label)
-        } else {
-            peerList.add(UiPeer(id = id.toInt(), avatarLabel = label, liked = false, hasBadge = false))
-        }
-        peerAdapter.submitList(peerList.toList())
-    }
+                val statusHint = when (peer.status) {
+                    "YELLOW" -> getString(R.string.status_hint_yellow)
+                    "RED" -> getString(R.string.status_hint_red)
+                    else -> getString(R.string.status_hint_green)
+                }
 
-    private fun onPeerLiked(peer: UiPeer) {
-        val index = peerList.indexOfFirst { it.id == peer.id }
-        if (index != -1) {
-            peerList[index] = peerList[index].copy(liked = true)
-            peerAdapter.submitList(peerList.toList())
+                val title = when {
+                    isLikedByMe && isLikingMe -> {
+                        val base = getString(R.string.peer_match_prefix, peer.nickname)
+                        if (peer.contactInfo != "NONE") "$base\n📱 ${peer.contactInfo}" else base
+                    }
+                    isLikedByMe -> getString(R.string.peer_liked_suffix, peer.nickname)
+                    else -> peer.nickname
+                }
 
-            // Показываем взаимность/мэтч при повторном клике или получении сигнала
-            showMatchDialog(peer)
-        }
-    }
-
-    private fun showMatchDialog(peer: UiPeer) {
-        AlertDialog.Builder(this)
-            .setTitle(getString(R.string.match_title))
-            .setMessage(getString(R.string.match_message))
-            .setPositiveButton(getString(R.string.yes_button)) { _, _ ->
-                val phoneMsg = String.format(getString(R.string.their_phone_format), phoneInput.text.toString())
-                Toast.makeText(this, phoneMsg, Toast.LENGTH_LONG).show()
+                UiPeer(
+                    uid = peer.uid,
+                    avatarLabel = "$title\n$statusHint\n📍 $distStr",
+                    liked = isLikedByMe,
+                    hasBadge = isLikedByMe && isLikingMe
+                )
             }
-            .setNegativeButton(getString(R.string.not_now_button), null)
+            peerAdapter.submitList(uiList)
+        }
+    }
+
+    private fun showContactChoiceDialog(targetUid: String) {
+        val options = mutableListOf<String>()
+        val values = mutableListOf<String>()
+
+        if (myPhone.isNotEmpty()) { options.add(getString(R.string.contact_option_phone, myPhone)); values.add(myPhone) }
+        if (myEmail.isNotEmpty()) { options.add(getString(R.string.contact_option_email, myEmail)); values.add(myEmail) }
+        options.add(getString(R.string.contact_option_none)); values.add("NONE")
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.contact_dialog_title)
+            .setItems(options.toTypedArray()) { _, index ->
+                contactPayload = values[index]
+                targetLikedUid = targetUid
+                myLikes[targetUid] = true
+
+                bleManager.start(currentNickname, myAnonymousId, currentStatusCode, targetLikedUid, contactPayload)
+                updateUiList()
+            }.show()
+    }
+
+    private fun showMatchDialog(name: String, contact: String) {
+        val contactText = if (contact != "NONE") {
+            getString(R.string.match_dialog_contact, contact)
+        } else {
+            getString(R.string.match_dialog_no_contact)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.match_dialog_title)
+            .setMessage(getString(R.string.match_dialog_message, name) + "\n\n" + contactText)
+            .setPositiveButton(R.string.ok_button, null)
             .show()
     }
 
-    private fun checkPermissions() {
-        val permissions = mutableListOf(
-            Manifest.permission.ACCESS_FINE_LOCATION
-        )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            permissions.add(Manifest.permission.BLUETOOTH_SCAN)
-            permissions.add(Manifest.permission.BLUETOOTH_ADVERTISE)
-            permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun showHistoryDialog() {
+        val matches = historyManager.getMatches()
+        if (matches.isEmpty()) {
+            Toast.makeText(this, getString(R.string.history_empty), Toast.LENGTH_SHORT).show()
+            return
         }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.history_title)
+            .setItems(matches.toTypedArray(), null)
+            .setNeutralButton(R.string.history_clear_button) { _, _ -> historyManager.clearHistory() }
+            .setPositiveButton(R.string.ok_button, null)
+            .show()
+    }
 
-        val missing = permissions.filter { ActivityCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
-        if (missing.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, missing.toTypedArray(), PERMISSION_REQUEST_CODE)
+    private fun calculateDistance(rssi: Int, txPower: Int = -59): Double {
+        if (rssi == 0) return -1.0
+        val ratio = rssi * 1.0 / txPower
+        return if (ratio < 1.0) ratio.pow(10.0) else 0.89976 * ratio.pow(7.7095) + 0.111
+    }
+
+    private fun triggerVibration() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vm = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                vm.defaultVibrator.vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                (getSystemService(Context.VIBRATOR_SERVICE) as Vibrator).vibrate(500)
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun startCleanupTask() {
+        mainHandler.postDelayed(object : Runnable {
+            override fun run() {
+                val now = System.currentTimeMillis()
+                val iterator = discoveredPeers.entries.iterator()
+                while (iterator.hasNext()) {
+                    val entry = iterator.next()
+                    if (now - entry.value.lastSeen > 12000) {
+                        iterator.remove()
+                    }
+                }
+                updateUiList()
+                mainHandler.postDelayed(this, 5000)
+            }
+        }, 5000)
+    }
+
+    private fun getSelectedStatusCode(): String {
+        val radioYellow = findViewById<RadioButton?>(resources.getIdentifier("radioYellow", "id", packageName))
+        val radioRed = findViewById<RadioButton?>(resources.getIdentifier("radioRed", "id", packageName))
+        return when {
+            radioYellow?.isChecked == true -> "YELLOW"
+            radioRed?.isChecked == true -> "RED"
+            else -> "GREEN"
         }
+    }
+
+    private fun hasPermissions(): Boolean {
+        val perms = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            perms.add(Manifest.permission.BLUETOOTH_SCAN)
+            perms.add(Manifest.permission.BLUETOOTH_ADVERTISE)
+            perms.add(Manifest.permission.BLUETOOTH_CONNECT)
+        }
+        return perms.all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }
+    }
+
+    private fun requestPermissions() {
+        val perms = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            perms.add(Manifest.permission.BLUETOOTH_SCAN)
+            perms.add(Manifest.permission.BLUETOOTH_ADVERTISE)
+            perms.add(Manifest.permission.BLUETOOTH_CONNECT)
+        }
+        ActivityCompat.requestPermissions(this, perms.toTypedArray(), PERMISSION_REQUEST_CODE)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        bleManager.stop()
+    }
+
+    companion object {
+        private const val PREFS_NAME = "matchmvp_settings"
+        private const val KEY_LANG = "lang_code"
     }
 }
