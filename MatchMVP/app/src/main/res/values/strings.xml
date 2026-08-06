@@ -47,4 +47,6 @@
 
     <string name="lang_toast_ru">Установлен русский язык</string>
     <string name="lang_toast_en">English language set</string>
-</resources>
+<string name="btn_like">Лайк</string>
+    <string name="btn_liked">Лайкнуто</string>
+    <string name="btn_match">Взаимно! 🎉</string></resources>
