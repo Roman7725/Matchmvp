@@ -27,53 +27,109 @@ class BleManager(
     private var bleAdvertiser: BluetoothLeAdvertiser? = null
     private var bleScanner: BluetoothLeScanner? = null
     private var advertiseCallback: AdvertiseCallback? = null
+    private var advertisingSetCallback: AdvertisingSetCallback? = null
     private var scanCallback: ScanCallback? = null
 
     fun isBluetoothEnabled(): Boolean = bluetoothAdapter?.isEnabled == true
+
+    private fun supportsExtendedAdvertising(): Boolean {
+        val adapter = bluetoothAdapter ?: return false
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && adapter.isLeExtendedAdvertisingSupported
+    }
 
     fun start(myNickname: String, myUid: String, status: String, targetLikedUid: String, contact: String) {
         val adapter = bluetoothAdapter ?: return
         if (!adapter.isEnabled) return
 
-        stop() // Очищаем старые колбэки при обновлении
+        stop()
 
-        // Компактный формат пакета
+        val useExtended = supportsExtendedAdvertising()
+
         val safeNick = if (myNickname.length > 4) myNickname.substring(0, 4) else myNickname
-        val safeContact = if (contact.length > 12) contact.substring(0, 12) else contact
+        val safeContact = if (!useExtended) {
+            ""
+        } else if (contact.length > 40) {
+            contact.substring(0, 40)
+        } else {
+            contact
+        }
+
         val payloadStr = "$safeNick:$myUid:$status:$targetLikedUid:$safeContact"
         val payloadBytes = payloadStr.toByteArray(StandardCharsets.UTF_8)
 
-        // 1. Запуск Advertiser
         bleAdvertiser = adapter.bluetoothLeAdvertiser
-        val advSettings = AdvertiseSettings.Builder()
-            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
-            .setConnectable(false)
-            .build()
 
         val advData = AdvertiseData.Builder()
             .setIncludeDeviceName(false)
             .addServiceData(ParcelUuid(SERVICE_UUID), payloadBytes)
             .build()
 
+        if (useExtended) {
+            startExtendedAdvertising(advData, payloadStr)
+        } else {
+            startLegacyAdvertising(advData, payloadStr)
+        }
+
+        startScanning(useExtended)
+    }
+
+    private fun startExtendedAdvertising(advData: AdvertiseData, debugPayload: String) {
+        val params = AdvertisingSetParameters.Builder()
+            .setLegacyMode(false)
+            .setConnectable(false)
+            .setScannable(false)
+            .setInterval(AdvertisingSetParameters.INTERVAL_LOW)
+            .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
+            .build()
+
+        advertisingSetCallback = object : AdvertisingSetCallback() {
+            override fun onAdvertisingSetStarted(advertisingSet: AdvertisingSet?, txPower: Int, status: Int) {
+                Log.d("BLE_2_0", "Extended ADV started (status=$status): $debugPayload")
+            }
+            override fun onAdvertisingSetStopped(advertisingSet: AdvertisingSet?) {
+                Log.d("BLE_2_0", "Extended ADV stopped")
+            }
+        }
+
+        if (hasPermission(Manifest.permission.BLUETOOTH_ADVERTISE)) {
+            try {
+                bleAdvertiser?.startAdvertisingSet(params, advData, null, null, null, advertisingSetCallback)
+            } catch (e: Exception) {
+                Log.e("BLE_2_0", "Extended ADV failed to start, falling back to legacy", e)
+                startLegacyAdvertising(advData, debugPayload)
+            }
+        }
+    }
+
+    private fun startLegacyAdvertising(advData: AdvertiseData, debugPayload: String) {
+        val advSettings = AdvertiseSettings.Builder()
+            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
+            .setConnectable(false)
+            .build()
+
         advertiseCallback = object : AdvertiseCallback() {
             override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
-                Log.d("BLE_2_0", "ADV Started: $payloadStr")
+                Log.d("BLE_2_0", "Legacy ADV started: $debugPayload")
             }
             override fun onStartFailure(errorCode: Int) {
-                Log.e("BLE_2_0", "ADV Failed: $errorCode")
+                Log.e("BLE_2_0", "Legacy ADV failed to start: errorCode=$errorCode")
             }
         }
 
         if (hasPermission(Manifest.permission.BLUETOOTH_ADVERTISE)) {
             bleAdvertiser?.startAdvertising(advSettings, advData, advertiseCallback)
         }
+    }
 
-        // 2. Запуск Scanner
-        bleScanner = adapter.bluetoothLeScanner
-        val scanSettings = ScanSettings.Builder()
+    private fun startScanning(useExtended: Boolean) {
+        bleScanner = bluetoothAdapter?.bluetoothLeScanner
+        val scanSettingsBuilder = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-            .build()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            scanSettingsBuilder.setLegacy(false)
+        }
 
         scanCallback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult?) {
@@ -82,10 +138,13 @@ class BleManager(
             override fun onBatchScanResults(results: MutableList<ScanResult>?) {
                 results?.forEach { parseScanResult(it) }
             }
+            override fun onScanFailed(errorCode: Int) {
+                Log.e("BLE_2_0", "Scan failed: errorCode=$errorCode")
+            }
         }
 
         if (hasPermission(Manifest.permission.BLUETOOTH_SCAN)) {
-            bleScanner?.startScan(null, scanSettings, scanCallback)
+            bleScanner?.startScan(null, scanSettingsBuilder.build(), scanCallback)
         }
     }
 
@@ -101,7 +160,7 @@ class BleManager(
                 uid = parts[1],
                 status = if (parts.size >= 3) parts[2] else "GREEN",
                 likedTargetUid = if (parts.size >= 4) parts[3] else "NONE",
-                contactInfo = if (parts.size >= 5) parts[4] else "NONE",
+                contactInfo = if (parts.size >= 5 && parts[4].isNotEmpty()) parts[4] else "NONE",
                 rssi = result.rssi
             )
             onPeerDiscovered(peer)
@@ -112,6 +171,7 @@ class BleManager(
         try {
             if (hasPermission(Manifest.permission.BLUETOOTH_ADVERTISE)) {
                 advertiseCallback?.let { bleAdvertiser?.stopAdvertising(it) }
+                advertisingSetCallback?.let { bleAdvertiser?.stopAdvertisingSet(it) }
             }
             if (hasPermission(Manifest.permission.BLUETOOTH_SCAN)) {
                 scanCallback?.let { bleScanner?.stopScan(it) }
@@ -120,6 +180,7 @@ class BleManager(
             e.printStackTrace()
         } finally {
             advertiseCallback = null
+            advertisingSetCallback = null
             scanCallback = null
         }
     }
