@@ -1,26 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Match MVP</string>
+    <string name="app_name">MatchMVP</string>
+    <string name="title_app">MATCH MVP</string>
+    <string name="lang_toggle_button">EN / RU</string>
 
-    <string name="nickname_hint">Your nickname</string>
-    <string name="phone_hint">Your phone number (revealed only on a match)</string>
-    <string name="age_check_label">I am 18 years or older</string>
-    <string name="badge_check_label">Show community badge (visible only to people who also enabled it)</string>
-    <string name="join_button">Join the airwaves</string>
+    <string name="nickname_hint">Nickname</string>
+    <string name="status_label">Your status:</string>
+    <string name="status_green">🟢 Easy to approach</string>
+    <string name="status_yellow">🟡 Better text first</string>
+    <string name="status_red">🔴 Just watching for now</string>
+    <string name="phone_hint">Phone number</string>
+    <string name="email_hint">Email (optional)</string>
+    <string name="age_check_label">I am 18 or older</string>
+    <string name="join_button">JOIN BROADCAST</string>
+    <string name="missing_fields_toast">Enter your nickname and confirm you\'re 18+</string>
 
-    <string name="nearby_title">Who\'s nearby</string>
+    <string name="nearby_title">People Nearby</string>
+    <string name="history_button">History</string>
+    <string name="leave_button">Leave</string>
+    <string name="radar_searching">Searching for nearby people…</string>
 
-    <string name="permissions_needed_title">Permissions needed</string>
-    <string name="permissions_needed_message">Without Bluetooth permissions the app can\'t find people nearby.</string>
+    <string name="contact_dialog_title">Share contact on a match?</string>
+    <string name="contact_option_phone">Phone: %1$s</string>
+    <string name="contact_option_email">Email: %1$s</string>
+    <string name="contact_option_none">No contact</string>
+
+    <string name="match_dialog_title">🎉 IT\'S A MUTUAL MATCH!</string>
+    <string name="match_dialog_message">You and %1$s liked each other!</string>
+    <string name="match_dialog_contact">Contact: %1$s</string>
+    <string name="match_dialog_no_contact">No contact shared</string>
     <string name="ok_button">OK</string>
-    <string name="missing_fields_message">Enter your nickname, phone number, and confirm you\'re 18+.</string>
-    <string name="match_title">Mutual interest!</string>
-    <string name="match_message">Want to reveal your phone number?</string>
-    <string name="yes_button">Yes</string>
-    <string name="not_now_button">Not now</string>
-    <string name="their_phone_format">Their number: %1$s 🎉</string>
 
-    <string name="badge_prefix">🏳️‍🌈</string>
-    <string name="like_button">♥</string>
-    <string name="liked_button">♥ Liked</string>
+    <string name="history_title">Match history</string>
+    <string name="history_empty">No matches yet</string>
+    <string name="history_clear_button">Clear</string>
+
+    <string name="status_hint_green">🟢 Easy to approach</string>
+    <string name="status_hint_yellow">🟡 Text first</string>
+    <string name="status_hint_red">🔴 Just watching</string>
+
+    <string name="peer_match_prefix">🔥 MATCH! %1$s</string>
+    <string name="peer_liked_suffix">⭐ %1$s (Like sent)</string>
+
+    <string name="distance_cm_format">%1$dcm</string>
+    <string name="distance_m_format">%1$.1fm</string>
+
+    <string name="lang_toast_ru">Установлен русский язык</string>
+    <string name="lang_toast_en">English language set</string>
 </resources>
