@@ -89,6 +89,12 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_UNDERAGE_BLOCKED, false)) {
+            showBlockedScreen()
+            return
+        }
+
         historyManager = HistoryManager(this)
         bleManager = BleManager(this) { peer -> onPeerDiscovered(peer) }
 
@@ -105,6 +111,28 @@ class MainActivity : AppCompatActivity() {
         startCleanupTask()
     }
 
+    private fun showBlockedScreen() {
+        findViewById<View?>(resources.getIdentifier("joinScreen", "id", packageName))?.visibility = View.GONE
+        findViewById<View?>(resources.getIdentifier("roomScreen", "id", packageName))?.visibility = View.GONE
+        findViewById<View?>(resources.getIdentifier("blockedScreen", "id", packageName))?.visibility = View.VISIBLE
+    }
+
+    private fun calculateAge(day: Int, month: Int, year: Int): Int? {
+        val today = java.util.Calendar.getInstance()
+        val birth = java.util.Calendar.getInstance()
+        if (year < 1900 || year > today.get(java.util.Calendar.YEAR)) return null
+        if (month < 1 || month > 12) return null
+        if (day < 1 || day > 31) return null
+        birth.set(year, month - 1, day, 0, 0, 0)
+        if (birth.get(java.util.Calendar.MONTH) != month - 1) return null
+
+        var age = today.get(java.util.Calendar.YEAR) - birth.get(java.util.Calendar.YEAR)
+        if (today.get(java.util.Calendar.DAY_OF_YEAR) < birth.get(java.util.Calendar.DAY_OF_YEAR)) {
+            age--
+        }
+        return age
+    }
+
     private fun setupUI() {
         val joinBtn = findViewById<Button?>(resources.getIdentifier("joinBtn", "id", packageName))
         val leaveBtn = findViewById<Button?>(resources.getIdentifier("leaveBtn", "id", packageName))
@@ -115,11 +143,31 @@ class MainActivity : AppCompatActivity() {
             val nickInput = findViewById<EditText?>(resources.getIdentifier("nicknameInput", "id", packageName))
             val phoneInput = findViewById<EditText?>(resources.getIdentifier("phoneInput", "id", packageName))
             val emailInput = findViewById<EditText?>(resources.getIdentifier("emailInput", "id", packageName))
-            val ageCheck = findViewById<CheckBox?>(resources.getIdentifier("ageCheck", "id", packageName))
+            val dayInput = findViewById<EditText?>(resources.getIdentifier("birthDayInput", "id", packageName))
+            val monthInput = findViewById<EditText?>(resources.getIdentifier("birthMonthInput", "id", packageName))
+            val yearInput = findViewById<EditText?>(resources.getIdentifier("birthYearInput", "id", packageName))
 
             val nick = nickInput?.text?.toString()?.trim().orEmpty()
-            if (nick.isEmpty() || ageCheck?.isChecked != true) {
+            val day = dayInput?.text?.toString()?.trim()?.toIntOrNull()
+            val month = monthInput?.text?.toString()?.trim()?.toIntOrNull()
+            val year = yearInput?.text?.toString()?.trim()?.toIntOrNull()
+
+            if (nick.isEmpty() || day == null || month == null || year == null) {
                 Toast.makeText(this, getString(R.string.missing_fields_toast), Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val age = calculateAge(day, month, year)
+            if (age == null) {
+                Toast.makeText(this, getString(R.string.invalid_birthdate_toast), Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            if (age < 18) {
+                getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    .edit().putBoolean(KEY_UNDERAGE_BLOCKED, true).apply()
+                bleManager.stop()
+                showBlockedScreen()
                 return@setOnClickListener
             }
 
@@ -329,5 +377,6 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val PREFS_NAME = "matchmvp_settings"
         private const val KEY_LANG = "lang_code"
+        private const val KEY_UNDERAGE_BLOCKED = "underage_blocked"
     }
 }
