@@ -1,4 +1,17 @@
-<string name="age_check_label">Мне есть 18 лет</string>
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MatchMVP</string>
+    <string name="title_app">MATCH MVP</string>
+    <string name="lang_toggle_button">EN / RU</string>
+
+    <string name="nickname_hint">Имя</string>
+    <string name="status_label">Твой статус:</string>
+    <string name="status_green">🟢 Легко подойди</string>
+    <string name="status_yellow">🟡 Лучше сначала напиши</string>
+    <string name="status_red">🔴 Пока только наблюдаю</string>
+    <string name="phone_hint">Телефон</string>
+    <string name="email_hint">Email (опционально)</string>
+    <string name="age_check_label">Мне есть 18 лет</string>
     <string name="birthdate_label">Дата рождения:</string>
     <string name="birthdate_day_hint">ДД</string>
     <string name="birthdate_month_hint">ММ</string>
@@ -6,3 +19,43 @@
     <string name="invalid_birthdate_toast">Введите корректную дату рождения</string>
     <string name="blocked_title">Доступ ограничен</string>
     <string name="blocked_message">Это приложение предназначено только для пользователей 18 лет и старше.</string>
+    <string name="join_button">ВОЙТИ В ЭФИР</string>
+    <string name="missing_fields_toast">Заполните имя и подтвердите возраст 18+</string>
+
+    <string name="nearby_title">Кто рядом</string>
+    <string name="history_button">История</string>
+    <string name="leave_button">Выйти</string>
+    <string name="radar_searching">Поиск участников рядом…</string>
+
+    <string name="contact_dialog_title">Поделиться контактом при совпадении?</string>
+    <string name="contact_option_phone">Телефон: %1$s</string>
+    <string name="contact_option_email">Email: %1$s</string>
+    <string name="contact_option_none">Без контакта</string>
+
+    <string name="match_dialog_title">🎉 ВЗАИМНОЕ СОВПАДЕНИЕ!</string>
+    <string name="match_dialog_message">Вы и %1$s понравились друг другу!</string>
+    <string name="match_dialog_contact">Контакт: %1$s</string>
+    <string name="match_dialog_no_contact">Без контакта</string>
+    <string name="ok_button">OK</string>
+
+    <string name="history_title">История совпадений</string>
+    <string name="history_empty">История совпадений пуста</string>
+    <string name="history_clear_button">Очистить</string>
+
+    <string name="status_hint_green">🟢 Легко подойди</string>
+    <string name="status_hint_yellow">🟡 Напиши сначала</string>
+    <string name="status_hint_red">🔴 Наблюдаю</string>
+
+    <string name="peer_match_prefix">🔥 MATCH! %1$s</string>
+    <string name="peer_liked_suffix">⭐ %1$s (Лайк отправлен)</string>
+
+    <string name="distance_cm_format">%1$dсм</string>
+    <string name="distance_m_format">%1$.1fm</string>
+
+    <string name="lang_toast_ru">Установлен русский язык</string>
+    <string name="lang_toast_en">English language set</string>
+
+    <string name="btn_like">Лайк</string>
+    <string name="btn_liked">Лайкнуто</string>
+    <string name="btn_match">Взаимно! 🎉</string>
+</resources>
