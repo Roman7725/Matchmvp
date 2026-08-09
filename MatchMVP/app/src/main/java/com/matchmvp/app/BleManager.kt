@@ -152,7 +152,7 @@ class BleManager(
         val record = result.scanRecord ?: return
         val serviceData = record.getServiceData(ParcelUuid(SERVICE_UUID)) ?: return
         val payloadStr = String(serviceData, StandardCharsets.UTF_8)
-        val parts = payloadStr.split(":")
+        val parts = payloadStr.split(":", limit = 6)
 
         if (parts.size >= 2) {
             val peer = NearbyPeer(
