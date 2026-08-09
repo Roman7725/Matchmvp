@@ -9,8 +9,9 @@
     <string name="status_green">🟢 Easy to approach</string>
     <string name="status_yellow">🟡 Better text first</string>
     <string name="status_red">🔴 Just watching for now</string>
-    <string name="phone_hint">Phone number</string>
+    <string name="phone_hint">Phone number (for WhatsApp)</string>
     <string name="email_hint">Email (optional)</string>
+    <string name="avatar_picker_label">Choose your avatar:</string>
     <string name="age_check_label">I am 18 or older</string>
     <string name="birthdate_label">Date of birth:</string>
     <string name="birthdate_day_hint">DD</string>
@@ -28,9 +29,11 @@
     <string name="radar_searching">Searching for nearby people…</string>
 
     <string name="contact_dialog_title">Share contact on a match?</string>
-    <string name="contact_option_phone">Phone: %1$s</string>
+    <string name="contact_option_phone">WhatsApp: %1$s</string>
     <string name="contact_option_email">Email: %1$s</string>
     <string name="contact_option_none">No contact</string>
+    <string name="open_whatsapp_button">Open WhatsApp</string>
+    <string name="open_email_button">Send Email</string>
 
     <string name="match_dialog_title">🎉 IT\'S A MUTUAL MATCH!</string>
     <string name="match_dialog_message">You and %1$s liked each other!</string>
