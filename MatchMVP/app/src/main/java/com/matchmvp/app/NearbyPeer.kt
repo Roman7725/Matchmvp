@@ -5,6 +5,7 @@ data class NearbyPeer(
     val nickname: String,
     val status: String,
     val likedTargetUid: String,
+    val avatarId: Int,
     val contactInfo: String,
     val rssi: Int,
     val lastSeen: Long = System.currentTimeMillis()
