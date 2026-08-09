@@ -37,7 +37,7 @@ class BleManager(
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && adapter.isLeExtendedAdvertisingSupported
     }
 
-    fun start(myNickname: String, myUid: String, status: String, targetLikedUid: String, contact: String) {
+    fun start(myNickname: String, myUid: String, status: String, targetLikedUid: String, avatarId: Int, contact: String) {
         val adapter = bluetoothAdapter ?: return
         if (!adapter.isEnabled) return
 
@@ -54,7 +54,7 @@ class BleManager(
             contact
         }
 
-        val payloadStr = "$safeNick:$myUid:$status:$targetLikedUid:$safeContact"
+        val payloadStr = "$safeNick:$myUid:$status:$targetLikedUid:$avatarId:$safeContact"
         val payloadBytes = payloadStr.toByteArray(StandardCharsets.UTF_8)
 
         bleAdvertiser = adapter.bluetoothLeAdvertiser
@@ -160,7 +160,8 @@ class BleManager(
                 uid = parts[1],
                 status = if (parts.size >= 3) parts[2] else "GREEN",
                 likedTargetUid = if (parts.size >= 4) parts[3] else "NONE",
-                contactInfo = if (parts.size >= 5 && parts[4].isNotEmpty()) parts[4] else "NONE",
+                avatarId = if (parts.size >= 5) parts[4].toIntOrNull() ?: 0 else 0,
+                contactInfo = if (parts.size >= 6 && parts[5].isNotEmpty()) parts[5] else "NONE",
                 rssi = result.rssi
             )
             onPeerDiscovered(peer)
