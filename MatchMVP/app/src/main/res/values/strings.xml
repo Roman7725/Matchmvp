@@ -9,8 +9,9 @@
     <string name="status_green">🟢 Легко подойди</string>
     <string name="status_yellow">🟡 Лучше сначала напиши</string>
     <string name="status_red">🔴 Пока только наблюдаю</string>
-    <string name="phone_hint">Телефон</string>
+    <string name="phone_hint">Телефон (для WhatsApp)</string>
     <string name="email_hint">Email (опционально)</string>
+    <string name="avatar_picker_label">Выбери аватар:</string>
     <string name="age_check_label">Мне есть 18 лет</string>
     <string name="birthdate_label">Дата рождения:</string>
     <string name="birthdate_day_hint">ДД</string>
@@ -28,9 +29,11 @@
     <string name="radar_searching">Поиск участников рядом…</string>
 
     <string name="contact_dialog_title">Поделиться контактом при совпадении?</string>
-    <string name="contact_option_phone">Телефон: %1$s</string>
+    <string name="contact_option_phone">WhatsApp: %1$s</string>
     <string name="contact_option_email">Email: %1$s</string>
     <string name="contact_option_none">Без контакта</string>
+    <string name="open_whatsapp_button">Открыть WhatsApp</string>
+    <string name="open_email_button">Написать на Email</string>
 
     <string name="match_dialog_title">🎉 ВЗАИМНОЕ СОВПАДЕНИЕ!</string>
     <string name="match_dialog_message">Вы и %1$s понравились друг другу!</string>
