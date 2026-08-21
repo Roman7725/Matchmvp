@@ -1,0 +1,311 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0D0B18">
+
+    <!-- JOIN SCREEN -->
+    <LinearLayout
+        android:id="@+id/joinScreen"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:gravity="center_horizontal">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:layout_marginBottom="12dp">
+
+            <Button
+                android:id="@+id/langBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/lang_toggle_button"
+                android:textSize="12sp"
+                android:textColor="#00E5FF"
+                android:background="?android:attr/selectableItemBackground"/>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/titleTv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/title_app"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="#00E5FF"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:id="@+id/avatarPickerLabelTv"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/avatar_picker_label"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:layout_marginBottom="6dp"/>
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="none"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:id="@+id/avatarPickerContainer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"/>
+
+        </HorizontalScrollView>
+
+        <EditText
+            android:id="@+id/nicknameInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/nickname_hint"
+            android:textColorHint="#888888"
+            android:textColor="#FFFFFF"
+            android:inputType="textPersonName"
+            android:layout_marginBottom="12dp"/>
+
+        <TextView
+            android:id="@+id/statusLabelTv"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/status_label"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:layout_marginBottom="6dp"/>
+
+        <RadioGroup
+            android:id="@+id/statusRadioGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="16dp">
+
+            <RadioButton
+                android:id="@+id/radioGreen"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/status_green"
+                android:textColor="#FFFFFF"
+                android:checked="true"/>
+
+            <RadioButton
+                android:id="@+id/radioYellow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/status_yellow"
+                android:textColor="#FFFFFF"/>
+
+            <RadioButton
+                android:id="@+id/radioRed"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/status_red"
+                android:textColor="#FFFFFF"/>
+        </RadioGroup>
+
+        <EditText
+            android:id="@+id/phoneInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/phone_hint"
+            android:textColorHint="#888888"
+            android:textColor="#FFFFFF"
+            android:inputType="phone"
+            android:layout_marginBottom="12dp"/>
+
+        <EditText
+            android:id="@+id/emailInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/email_hint"
+            android:textColorHint="#888888"
+            android:textColor="#FFFFFF"
+            android:inputType="textEmailAddress"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:id="@+id/birthdateLabelTv"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/birthdate_label"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:layout_marginBottom="6dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="20dp">
+
+            <EditText
+                android:id="@+id/birthDayInput"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                android:hint="@string/birthdate_day_hint"
+                android:textColorHint="#888888"
+                android:textColor="#FFFFFF"
+                android:inputType="number"
+                android:maxLength="2"
+                android:gravity="center"/>
+
+            <EditText
+                android:id="@+id/birthMonthInput"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                android:hint="@string/birthdate_month_hint"
+                android:textColorHint="#888888"
+                android:textColor="#FFFFFF"
+                android:inputType="number"
+                android:maxLength="2"
+                android:gravity="center"/>
+
+            <EditText
+                android:id="@+id/birthYearInput"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.4"
+                android:hint="@string/birthdate_year_hint"
+                android:textColorHint="#888888"
+                android:textColor="#FFFFFF"
+                android:inputType="number"
+                android:maxLength="4"
+                android:gravity="center"/>
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/joinBtn"
+            android:layout_width="match_parent"
+            android:layout_height="54dp"
+            android:text="@string/join_button"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#000000"
+            android:backgroundTint="#E0E0E0"/>
+
+    </LinearLayout>
+
+    <!-- BLOCKED SCREEN (age gate failed) -->
+    <LinearLayout
+        android:id="@+id/blockedScreen"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="32dp"
+        android:gravity="center"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/blocked_title"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="#FF5252"
+            android:gravity="center"
+            android:layout_marginBottom="12dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/blocked_message"
+            android:textSize="14sp"
+            android:textColor="#CCCCCC"
+            android:gravity="center"/>
+
+    </LinearLayout>
+
+    <!-- ROOM SCREEN -->
+    <LinearLayout
+        android:id="@+id/roomScreen"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:id="@+id/roomTitleTv"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/nearby_title"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#00E5FF"/>
+
+            <Button
+                android:id="@+id/historyBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/history_button"
+                android:textColor="#00E5FF"
+                android:textSize="13sp"
+                android:background="?android:attr/selectableItemBackground"
+                android:layout_marginEnd="8dp"/>
+
+            <Button
+                android:id="@+id/leaveBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/leave_button"
+                android:textColor="#FF5252"
+                android:textSize="13sp"
+                android:background="?android:attr/selectableItemBackground"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/radarStatusLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="8dp"
+            android:layout_marginBottom="8dp"
+            android:background="#1A00E5FF">
+
+            <ProgressBar
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginEnd="8dp"
+                android:indeterminate="true"/>
+
+            <TextView
+                android:id="@+id/radarStatusTv"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/radar_searching"
+                android:textColor="#00E5FF"
+                android:textSize="12sp"/>
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/peersRecyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"/>
+
+    </LinearLayout>
+
+</FrameLayout>

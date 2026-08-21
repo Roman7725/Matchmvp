@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="age_check_label">Ich bin 18 Jahre oder älter</string>
+    <string name="app_name">Match MVP</string>
+    <string name="badge_check_label">Community-Abzeichen anzeigen (nur sichtbar für Personen, die es ebenfalls aktiviert haben)</string>
+    <string name="badge_prefix">🏳️‍🌈</string>
+    <string name="join_button">Beitreten</string>
+    <string name="like_button">♥</string>
+    <string name="liked_button">♥ Gefällt mir</string>
+    <string name="match_message">Möchtest du deine Telefonnummer zeigen?</string>
+    <string name="match_title">Gegenseitiges Interesse!</string>
+    <string name="missing_fields_message">Gib deinen Spitznamen und deine Telefonnummer ein und bestätige, dass du 18 Jahre oder älter bist.</string>
+    <string name="nearby_title">Wer ist in der Nähe</string>
+    <string name="nickname_hint">Dein Spitzname</string>
+    <string name="not_now_button">Nicht jetzt</string>
+    <string name="ok_button">OK</string>
+    <string name="permissions_needed_message">Ohne Bluetooth-Berechtigungen kann die App keine Personen in der Nähe finden.</string>
+    <string name="permissions_needed_title">Berechtigungen erforderlich</string>
+    <string name="phone_hint">Deine Telefonnummer (wird nur bei einem Match angezeigt)</string>
+    <string name="their_phone_format">Nummer: %1$s 🎉</string>
+    <string name="yes_button">Ja</string>
+</resources>

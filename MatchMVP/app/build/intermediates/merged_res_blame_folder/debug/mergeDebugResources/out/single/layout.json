@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "com.matchmvp.app-mergeDebugResources-44:/layout/item_peer.xml",
+        "source": "com.matchmvp.app-main-47:/layout/item_peer.xml"
+    },
+    {
+        "merged": "com.matchmvp.app-mergeDebugResources-44:/layout/activity_main.xml",
+        "source": "com.matchmvp.app-main-47:/layout/activity_main.xml"
+    }
+]

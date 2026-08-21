@@ -1,0 +1,20 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.matchmvp.app-mergeDebugResources-43:/values-hdpi-v4/values-hdpi-v4.xml",
+            "map": [
+                {
+                    "source": "C:\\Users\\Digital Inclusion\\.gradle\\caches\\transforms-4\\57a1048dfe915421d5a722605c0471cc\\transformed\\appcompat-1.6.1\\res\\values-hdpi-v4\\values-hdpi-v4.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "6",
+                        "endColumns": "13",
+                        "endOffsets": "327"
+                    }
+                }
+            ]
+        }
+    ]
+}
