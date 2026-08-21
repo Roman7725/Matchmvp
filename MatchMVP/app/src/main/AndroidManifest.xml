@@ -23,7 +23,8 @@
 
     <application
         android:allowBackup="false"
-        android:label="Match MVP"
+        android:icon="@mipmap/ic_launcher"
+        android:label="Match"
         android:hardwareAccelerated="true"
         android:theme="@style/Theme.MatchMVP">
 
