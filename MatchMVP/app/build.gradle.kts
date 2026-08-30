@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.romanapps.match"
+    namespace = "com.matchmvp.app"
     compileSdk = 35
 
     defaultConfig {
