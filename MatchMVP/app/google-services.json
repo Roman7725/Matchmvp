@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "477275672529",
-    "project_id": "matchmvp-e2e54",
-    "storage_bucket": "matchmvp-e2e54.firebasestorage.app"
+    "project_number": "710924900054",
+    "project_id": "matchmvp-80af9",
+    "storage_bucket": "matchmvp-80af9.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:477275672529:android:75e807c8be554058ae9af0",
+        "mobilesdk_app_id": "1:710924900054:android:f1da91fadd4f6fbbf25b77",
         "android_client_info": {
           "package_name": "com.matchmvp.app"
         }
@@ -15,7 +15,26 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyD1ONu6j6qIlk3R2buHdg60aJYKR-nQU88"
+          "current_key": "AIzaSyBYlGxvcDW6T0m577W7HR81C5yIONQPw-U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:710924900054:android:1afe4cbb6dbfe7bef25b77",
+        "android_client_info": {
+          "package_name": "com.romanapps.match"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBYlGxvcDW6T0m577W7HR81C5yIONQPw-U"
         }
       ],
       "services": {
