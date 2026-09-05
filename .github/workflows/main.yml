@@ -7,10 +7,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
-    defaults:
-      run:
-        working-directory: ./MatchMVP
 
     steps:
     - name: Checkout code
@@ -23,23 +19,28 @@ jobs:
         java-version: '17'
         cache: 'gradle'
 
+    # Переходим в папку MatchMVP и даем права файлу gradlew
     - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
+      run: |
+        cd MatchMVP
+        chmod +x gradlew
 
-    # Распаковываем ключ в папку MatchMVP/app/
+    # Декодируем секрет и сохраняем его в MatchMVP/app/release.jks
     - name: Decode Keystore
       run: |
-        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.jks
+        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > MatchMVP/app/release.jks
 
-    # Собираем подписанный релизный AAB
+    # Запускаем сборку прямо из папки MatchMVP
     - name: Build Release Bundle (AAB)
-      run: ./gradlew bundleRelease
+      run: |
+        cd MatchMVP
+        ./gradlew bundleRelease
       env:
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
 
-    # Сохраняем готовый файл AAB
+    # Вытаскиваем готовый AAB из папки MatchMVP
     - name: Upload AAB Artifact
       uses: actions/upload-artifact@v4
       with:
