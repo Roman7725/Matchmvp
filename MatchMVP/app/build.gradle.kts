@@ -8,6 +8,16 @@ android {
     namespace = "com.matchmvp.app"
     compileSdk = 35
 
+    // 1. НАСТРОЙКА ПОДПИСИ: Считываем секреты из переменных окружения GitHub
+    signingConfigs {
+        create("release") {
+            storeFile = file("release.jks")
+            storePassword = System.getenv("KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("KEY_ALIAS")
+            keyPassword = System.getenv("KEY_PASSWORD")
+        }
+    }
+
     defaultConfig {
         applicationId = "com.romanapps.match"
         minSdk = 24
@@ -25,6 +35,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // 2. ПРИВЯЗКА ПОДПИСИ: Указываем использовать созданную подпись для Релиза
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
