@@ -14,6 +14,7 @@ import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.View
 import android.widget.*
@@ -55,19 +56,17 @@ class MainActivity : AppCompatActivity() {
     override fun attachBaseContext(newBase: Context) {
         val prefs = newBase.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val langCode = prefs.getString(KEY_LANG, defaultLangCode()) ?: defaultLangCode()
-        super.attachBaseContext(applyLocale(newBase, langCode))
+        val locale = Locale(langCode)
+        Locale.setDefault(locale)
+        val config = Configuration(newBase.resources.configuration)
+        config.setLocale(locale)
+        val wrapped = ContextThemeWrapper(newBase, R.style.Theme_MatchMVP)
+        wrapped.applyOverrideConfiguration(config)
+        super.attachBaseContext(wrapped)
     }
 
     private fun defaultLangCode(): String {
         return if (Locale.getDefault().language == "ru") "ru" else "en"
-    }
-
-    private fun applyLocale(context: Context, langCode: String): Context {
-        val locale = Locale(langCode)
-        Locale.setDefault(locale)
-        val config = Configuration(context.resources.configuration)
-        config.setLocale(locale)
-        return context.createConfigurationContext(config)
     }
 
     private fun currentLangCode(): String {
