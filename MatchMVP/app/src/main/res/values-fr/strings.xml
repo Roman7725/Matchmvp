@@ -1,26 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Match MVP</string>
+    <string name="app_name">MatchMVP</string>
+    <string name="title_app">MATCH MVP</string>
+    <string name="lang_toggle_button">🌐</string>
 
-    <string name="nickname_hint">Ton pseudo</string>
-    <string name="phone_hint">Ton numéro de téléphone (révélé seulement en cas de match)</string>
+    <string name="nickname_hint">Pseudo</string>
+    <string name="status_label">Ton statut :</string>
+    <string name="status_green">🟢 Facile à aborder</string>
+    <string name="status_yellow">🟡 Mieux vaut écrire d\'abord</string>
+    <string name="status_red">🔴 Je regarde juste pour l\'instant</string>
+    <string name="phone_hint">Numéro de téléphone (pour WhatsApp)</string>
+    <string name="email_hint">E-mail (facultatif)</string>
+    <string name="avatar_picker_label">Choisis ton avatar :</string>
     <string name="age_check_label">J\'ai 18 ans ou plus</string>
-    <string name="badge_check_label">Afficher le badge communautaire (visible uniquement pour ceux qui l\'ont aussi activé)</string>
-    <string name="join_button">Rejoindre</string>
+    <string name="birthdate_label">Date de naissance :</string>
+    <string name="birthdate_day_hint">JJ</string>
+    <string name="birthdate_month_hint">MM</string>
+    <string name="birthdate_year_hint">AAAA</string>
+    <string name="invalid_birthdate_toast">Saisis une date de naissance valide</string>
+    <string name="blocked_title">Accès restreint</string>
+    <string name="blocked_message">Cette application est réservée aux personnes de 18 ans et plus.</string>
+    <string name="join_button">REJOINDRE LA DIFFUSION</string>
+    <string name="missing_fields_toast">Saisis ton pseudo et confirme que tu as 18 ans ou plus</string>
 
-    <string name="nearby_title">Qui est à proximité</string>
+    <string name="nearby_title">Personnes à proximité</string>
+    <string name="history_button">Historique</string>
+    <string name="leave_button">Quitter</string>
+    <string name="radar_searching">Recherche de personnes à proximité…</string>
 
-    <string name="permissions_needed_title">Autorisations nécessaires</string>
-    <string name="permissions_needed_message">Sans les autorisations Bluetooth, l\'application ne peut pas trouver les personnes à proximité.</string>
+    <string name="contact_dialog_title">Partager ton contact en cas de match ?</string>
+    <string name="contact_option_phone">WhatsApp : %1$s</string>
+    <string name="contact_option_email">E-mail : %1$s</string>
+    <string name="contact_option_none">Aucun contact</string>
+    <string name="open_whatsapp_button">Ouvrir WhatsApp</string>
+    <string name="open_email_button">Envoyer un e-mail</string>
+
+    <string name="match_dialog_title">🎉 C\'EST UN MATCH !</string>
+    <string name="match_dialog_message">Toi et %1$s vous êtes likés mutuellement !</string>
+    <string name="match_dialog_contact">Contact : %1$s</string>
+    <string name="match_dialog_no_contact">Aucun contact partagé</string>
     <string name="ok_button">OK</string>
-    <string name="missing_fields_message">Entre ton pseudo, ton numéro de téléphone, et confirme que tu as 18 ans ou plus.</string>
-    <string name="match_title">Intérêt mutuel !</string>
-    <string name="match_message">Veux-tu révéler ton numéro de téléphone ?</string>
-    <string name="yes_button">Oui</string>
-    <string name="not_now_button">Pas maintenant</string>
-    <string name="their_phone_format">Son numéro : %1$s 🎉</string>
 
-    <string name="badge_prefix">🏳️‍🌈</string>
-    <string name="like_button">♥</string>
-    <string name="liked_button">♥ Aimé</string>
+    <string name="history_title">Historique des matchs</string>
+    <string name="history_empty">Aucun match pour l\'instant</string>
+    <string name="history_clear_button">Effacer</string>
+
+    <string name="status_hint_green">🟢 Facile à aborder</string>
+    <string name="status_hint_yellow">🟡 Écrire d\'abord</string>
+    <string name="status_hint_red">🔴 Je regarde juste</string>
+
+    <string name="peer_match_prefix">🔥 MATCH ! %1$s</string>
+    <string name="peer_liked_suffix">⭐ %1$s (Like envoyé)</string>
+
+    <string name="distance_cm_format">%1$d cm</string>
+    <string name="distance_m_format">%1$.1f m</string>
+
+    <string name="lang_toast_ru">Russe sélectionné</string>
+    <string name="lang_toast_en">Anglais sélectionné</string>
+
+    <string name="btn_like">J\'aime</string>
+    <string name="btn_liked">Aimé</string>
+    <string name="btn_match">C\'est un match ! 🎉</string>
 </resources>
