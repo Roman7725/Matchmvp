@@ -1,4 +1,4 @@
-name: Build Release AAB
+name: Build Release AAB and APK
 
 on:
   push:
@@ -30,19 +30,26 @@ jobs:
       run: |
         echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > MatchMVP/app/release.jks
 
-    # Запускаем сборку прямо из папки MatchMVP
-    - name: Build Release Bundle (AAB)
+    # Собираем и AAB (для Google Play), и APK (для установки на телефон)
+    - name: Build Release Bundle (AAB) and APK
       run: |
         cd MatchMVP
-        ./gradlew bundleRelease
+        ./gradlew bundleRelease assembleRelease
       env:
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
 
-    # Вытаскиваем готовый AAB из папки MatchMVP
+    # AAB для Google Play
     - name: Upload AAB Artifact
       uses: actions/upload-artifact@v4
       with:
         name: release-aab
         path: MatchMVP/app/build/outputs/bundle/release/app-release.aab
+
+    # APK для установки на телефон
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-apk
+        path: MatchMVP/app/build/outputs/apk/release/*.apk
