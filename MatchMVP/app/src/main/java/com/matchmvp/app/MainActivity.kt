@@ -66,7 +66,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun defaultLangCode(): String {
-        return if (Locale.getDefault().language == "ru") "ru" else "en"
+        val systemLang = Locale.getDefault().language
+        return if (LANGUAGES.any { it.first == systemLang }) systemLang else "en"
     }
 
     private fun currentLangCode(): String {
@@ -74,18 +75,23 @@ class MainActivity : AppCompatActivity() {
         return prefs.getString(KEY_LANG, defaultLangCode()) ?: defaultLangCode()
     }
 
-    private fun toggleLanguage() {
-        val newLang = if (currentLangCode() == "ru") "en" else "ru"
-        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().putString(KEY_LANG, newLang).apply()
+    private fun showLanguageDialog() {
+        val current = currentLangCode()
+        val names = LANGUAGES.map { it.second }.toTypedArray()
+        val checked = LANGUAGES.indexOfFirst { it.first == current }.coerceAtLeast(0)
 
-        Toast.makeText(
-            this,
-            if (newLang == "en") getString(R.string.lang_toast_en) else getString(R.string.lang_toast_ru),
-            Toast.LENGTH_SHORT
-        ).show()
-
-        recreate()
+        AlertDialog.Builder(this)
+            .setTitle("🌐")
+            .setSingleChoiceItems(names, checked) { dialog, which ->
+                val newLang = LANGUAGES[which].first
+                dialog.dismiss()
+                if (newLang != current) {
+                    getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                        .edit().putString(KEY_LANG, newLang).apply()
+                    recreate()
+                }
+            }
+            .show()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -195,7 +201,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         historyBtn?.setOnClickListener { showHistoryDialog() }
-        langBtn?.setOnClickListener { toggleLanguage() }
+        langBtn?.text = "🌐 ${currentLangCode().uppercase()}"
+        langBtn?.setOnClickListener { showLanguageDialog() }
     }
 
     private fun enterRoom() {
@@ -466,6 +473,14 @@ class MainActivity : AppCompatActivity() {
         private const val PREFS_NAME = "matchmvp_settings"
         private const val KEY_LANG = "lang_code"
         private const val KEY_UNDERAGE_BLOCKED = "underage_blocked"
+
+        // Поддерживаемые языки: код и название, которое видит пользователь
+        val LANGUAGES = listOf(
+            "en" to "English",
+            "ru" to "Русский",
+            "de" to "Deutsch",
+            "fr" to "Français"
+        )
 
         val AVATARS = listOf(
             "🦊", "🐻", "🦉", "🐺", "🐨", "🦁", "🐧", "🦅", "🐢", "🐬",
