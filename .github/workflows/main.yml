@@ -1,55 +1,64 @@
-name: Build Release AAB and APK
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MatchMVP</string>
+    <string name="title_app">MATCH MVP</string>
+    <string name="lang_toggle_button">🌐</string>
 
-on:
-  push:
-    branches: [ "main" ]
+    <string name="nickname_hint">Pseudo</string>
+    <string name="status_label">Ton statut :</string>
+    <string name="status_green">🟢 Facile à aborder</string>
+    <string name="status_yellow">🟡 Mieux vaut écrire d\'abord</string>
+    <string name="status_red">🔴 Je regarde juste pour l\'instant</string>
+    <string name="phone_hint">Numéro de téléphone (pour WhatsApp)</string>
+    <string name="email_hint">E-mail (facultatif)</string>
+    <string name="avatar_picker_label">Choisis ton avatar :</string>
+    <string name="age_check_label">J\'ai 18 ans ou plus</string>
+    <string name="birthdate_label">Date de naissance :</string>
+    <string name="birthdate_day_hint">JJ</string>
+    <string name="birthdate_month_hint">MM</string>
+    <string name="birthdate_year_hint">AAAA</string>
+    <string name="invalid_birthdate_toast">Saisis une date de naissance valide</string>
+    <string name="blocked_title">Accès restreint</string>
+    <string name="blocked_message">Cette application est réservée aux personnes de 18 ans et plus.</string>
+    <string name="join_button">REJOINDRE LA DIFFUSION</string>
+    <string name="missing_fields_toast">Saisis ton pseudo et confirme que tu as 18 ans ou plus</string>
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+    <string name="nearby_title">Personnes à proximité</string>
+    <string name="history_button">Historique</string>
+    <string name="leave_button">Quitter</string>
+    <string name="radar_searching">Recherche de personnes à proximité…</string>
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    <string name="contact_dialog_title">Partager ton contact en cas de match ?</string>
+    <string name="contact_option_phone">WhatsApp : %1$s</string>
+    <string name="contact_option_email">E-mail : %1$s</string>
+    <string name="contact_option_none">Aucun contact</string>
+    <string name="open_whatsapp_button">Ouvrir WhatsApp</string>
+    <string name="open_email_button">Envoyer un e-mail</string>
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'zulu'
-        java-version: '17'
-        cache: 'gradle'
+    <string name="match_dialog_title">🎉 C\'EST UN MATCH !</string>
+    <string name="match_dialog_message">Toi et %1$s vous êtes likés mutuellement !</string>
+    <string name="match_dialog_contact">Contact : %1$s</string>
+    <string name="match_dialog_no_contact">Aucun contact partagé</string>
+    <string name="ok_button">OK</string>
 
-    # Переходим в папку MatchMVP и даем права файлу gradlew
-    - name: Grant execute permission for gradlew
-      run: |
-        cd MatchMVP
-        chmod +x gradlew
+    <string name="history_title">Historique des matchs</string>
+    <string name="history_empty">Aucun match pour l\'instant</string>
+    <string name="history_clear_button">Effacer</string>
 
-    # Декодируем секрет и сохраняем его в MatchMVP/app/release.jks
-    - name: Decode Keystore
-      run: |
-        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > MatchMVP/app/release.jks
+    <string name="status_hint_green">🟢 Facile à aborder</string>
+    <string name="status_hint_yellow">🟡 Écrire d\'abord</string>
+    <string name="status_hint_red">🔴 Je regarde juste</string>
 
-    # Собираем и AAB (для Google Play), и APK (для установки на телефон)
-    - name: Build Release Bundle (AAB) and APK
-      run: |
-        cd MatchMVP
-        ./gradlew bundleRelease assembleRelease
-      env:
-        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+    <string name="peer_match_prefix">🔥 MATCH ! %1$s</string>
+    <string name="peer_liked_suffix">⭐ %1$s (Like envoyé)</string>
 
-    # AAB для Google Play
-    - name: Upload AAB Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: release-aab
-        path: MatchMVP/app/build/outputs/bundle/release/app-release.aab
+    <string name="distance_cm_format">%1$d cm</string>
+    <string name="distance_m_format">%1$.1f m</string>
 
-    # APK для установки на телефон
-    - name: Upload APK Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: release-apk
-        path: MatchMVP/app/build/outputs/apk/release/*.apk
+    <string name="lang_toast_ru">Russe sélectionné</string>
+    <string name="lang_toast_en">Anglais sélectionné</string>
+
+    <string name="btn_like">J\'aime</string>
+    <string name="btn_liked">Aimé</string>
+    <string name="btn_match">C\'est un match ! 🎉</string>
+</resources>
