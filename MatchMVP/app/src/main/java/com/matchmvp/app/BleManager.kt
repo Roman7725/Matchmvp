@@ -34,6 +34,8 @@ class BleManager(
     private var advertisingSetCallback: AdvertisingSetCallback? = null
     private var scanCallback: ScanCallback? = null
 
+    private val lastContact = java.util.concurrent.ConcurrentHashMap<String, String>()
+
     // ВРЕМЕННАЯ отладка: показывает ошибки Bluetooth прямо на экране.
     // Когда всё заработает, можно заменить тело функции на одну строку Log.d.
     private fun debug(msg: String) {
@@ -97,18 +99,20 @@ class BleManager(
             debug("BLE: рекламирование не поддерживается на этом телефоне")
         }
 
-        debug("BLE: режим ${if (useExtended) "extended" else "legacy"}, пакет $legacyBytes байт")
+        debug("BLE: ${if (useExtended) "legacy + extended" else "только legacy"}, пакет $legacyBytes байт")
 
+        // Legacy-пакет шлём ВСЕГДА: его принимают все телефоны, в том числе без поддержки extended.
+        startLegacyAdvertising(buildData(basePayload))
+
+        // Extended (с контактом) шлём дополнительно, только если телефон это умеет.
         if (useExtended) {
-            startExtendedAdvertising(buildData(extendedPayload), buildData(basePayload))
-        } else {
-            startLegacyAdvertising(buildData(basePayload))
+            startExtendedAdvertising(buildData(extendedPayload))
         }
 
         startScanning()
     }
 
-    private fun startExtendedAdvertising(extData: AdvertiseData, legacyData: AdvertiseData) {
+    private fun startExtendedAdvertising(extData: AdvertiseData) {
         val params = AdvertisingSetParameters.Builder()
             .setLegacyMode(false)
             .setConnectable(false)
@@ -122,8 +126,7 @@ class BleManager(
                 if (status == ADVERTISE_SUCCESS) {
                     Log.d("BLE_2_0", "Extended ADV started")
                 } else {
-                    debug("BLE: extended не запустился (код $status), перехожу на legacy")
-                    startLegacyAdvertising(legacyData)
+                    debug("BLE: extended не запустился (код $status), работает только legacy")
                 }
             }
 
@@ -141,8 +144,7 @@ class BleManager(
             bleAdvertiser?.startAdvertisingSet(params, extData, null, null, null, advertisingSetCallback)
         } catch (e: Exception) {
             Log.e("BLE_2_0", "Extended ADV exception", e)
-            debug("BLE: extended ошибка, перехожу на legacy")
-            startLegacyAdvertising(legacyData)
+            debug("BLE: extended ошибка, работает только legacy")
         }
     }
 
@@ -222,13 +224,25 @@ class BleManager(
         val parts = payloadStr.split(":", limit = 6)
 
         if (parts.size >= 2) {
+            val uid = parts[1]
+
+            // Legacy-пакет приходит без контакта (пустое поле), extended - с контактом.
+            // Запоминаем последний полученный контакт, чтобы он не пропадал между пакетами.
+            val rawContact = if (parts.size >= 6) parts[5] else ""
+            val contact = if (rawContact.isNotEmpty()) {
+                lastContact[uid] = rawContact
+                rawContact
+            } else {
+                lastContact[uid] ?: "NONE"
+            }
+
             val peer = NearbyPeer(
                 nickname = parts[0],
-                uid = parts[1],
+                uid = uid,
                 status = if (parts.size >= 3) codeToStatus(parts[2]) else "GREEN",
                 likedTargetUid = if (parts.size >= 4) parts[3] else "NONE",
                 avatarId = if (parts.size >= 5) parts[4].toIntOrNull() ?: 0 else 0,
-                contactInfo = if (parts.size >= 6 && parts[5].isNotEmpty()) parts[5] else "NONE",
+                contactInfo = contact,
                 rssi = result.rssi
             )
             onPeerDiscovered(peer)
