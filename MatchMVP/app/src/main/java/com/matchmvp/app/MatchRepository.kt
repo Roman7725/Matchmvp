@@ -4,6 +4,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
 
 class MatchRepository(private val eventCode: String) {
@@ -84,7 +85,7 @@ class MatchRepository(private val eventCode: String) {
         db.collection("events").document(eventCode)
             .collection("matches")
             .document(matchId)
-            .set(matchData).await()
+            .set(matchData, SetOptions.merge()).await()
     }
 
     fun listenForMatches(onMatch: (matchId: String, otherUid: String) -> Unit): ListenerRegistration {
@@ -106,7 +107,7 @@ class MatchRepository(private val eventCode: String) {
         val myUid = currentUid
         val myDoc = db.collection("events").document(eventCode)
             .collection("participants").document(myUid).get().await()
-        
+
         val updateData = hashMapOf<String, Any>()
         if (sharePhone) {
             updateData["phone_$myUid"] = myDoc.getString("phone") ?: ""
@@ -118,7 +119,7 @@ class MatchRepository(private val eventCode: String) {
         if (updateData.isNotEmpty()) {
             db.collection("events").document(eventCode)
                 .collection("matches").document(matchId)
-                .update(updateData).await()
+                .set(updateData, SetOptions.merge()).await()
         }
     }
 
